@@ -1,0 +1,31 @@
+{
+    "folders": [
+        {
+            "name": "EspTimer",
+            "path": "EspTimer"
+        }
+    ],
+    "settings": {
+        "files.associations": {
+            "*.json": "cpp",
+            "cctype": "cpp",
+            "clocale": "cpp",
+            "cmath": "cpp",
+            "cstdio": "cpp",
+            "cstdlib": "cpp",
+            "cstring": "cpp",
+            "cwchar": "cpp",
+            "cwctype": "cpp",
+            "memory_resource": "cpp",
+            "*.tcc": "cpp",
+            "bitset": "cpp",
+            "ranges": "cpp",
+            "ctime": "cpp",
+            "sstream": "cpp",
+            "limits": "cpp",
+            "atomic": "cpp",
+            "functional": "cpp",
+            "type_traits": "cpp"
+        }
+       }
+}

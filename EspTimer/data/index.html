@@ -1,0 +1,239 @@
+﻿<!DOCTYPE html5>
+<html>
+    <head>
+        <title>%TITLE%</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta charset="utf-8">
+        <link rel="stylesheet" type="text/css" href="style.css">
+    </head>
+    
+<body onload="OnLoad()">
+<h1 id="TITLE">%TITLE%</h1>
+
+<div style = "text-align:center;">
+    <canvas id ="clk" width="300" height="300" style="position:relative; margin:auto">
+    </canvas>
+</div>
+<br/><br/>
+<div style = "text-align:center;">
+    <a id="START">  <button class="button button_GREEN" onclick="OnSTART()">START</button></a><br><br>
+    <a id="STOP">   <button class="button button_RED"   onclick="OnSTOP()">STOP</button></a><br>
+    <p id="TEMPERATURE"><strong>%TEMPERATURE%</strong></p><br>
+</div>
+
+<script>
+    var clk;
+    var ctx;
+    var radius;
+    var t;
+    var cx;
+    var cy;
+
+    function send_post(url) {
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("POST", url, true);
+        xhttp.send();
+        refreshData();
+    }
+
+    function OnSTART() {
+        send_post("/h/start");
+    }
+
+    function OnSTOP() {
+        send_post("/h/stop");
+    }
+
+    function trace(msg) {
+        alert(msg);
+    }
+
+
+    var on_time = null;
+    var off_time = null;
+    var default_seconds;
+
+    function OnLoad() {
+        start_seconds = 0;
+        end_seconds = 0;
+        default_seconds = 0;
+
+        clk = document.getElementById("clk");
+        ctx = clk.getContext("2d");
+
+        cx = clk.width / 2;
+        cy = clk.height / 2;
+        radius = cy - 10;
+
+        ctx.translate(cx, cy);
+
+        radius = radius * 0.90;
+
+        refreshData();
+        drawClock();
+        setInterval(refreshData, 5000);
+        setInterval(drawClock, 1000);
+    }
+
+    function setData(text)  {
+        arr = text.split(";");
+        start_seconds = parseInt(arr[0]);
+        end_seconds = parseInt(arr[1]);
+        default_seconds = parseInt(arr[2]);
+
+        if(!end_seconds)
+        {
+            on_time = off_time = null;
+            return;
+        }
+
+        on_time  = new Date();
+        off_time = new Date();
+
+        on_time.setSeconds(on_time.getSeconds() + start_seconds);
+        off_time.setSeconds(off_time.getSeconds() + end_seconds);
+    }
+
+    function refreshData()    {
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function () {
+            if (this.readyState == 4 && this.status == 200) {
+                setData(this.responseText);
+            }
+        };
+
+        xhttp.open("GET", "/h/data", true);
+        xhttp.send();
+    }
+
+    function drawClock() {
+        t = new Date();
+
+        drawFace();
+        drawNumbers();
+        drawTime();
+
+        return;
+
+        ctx.stroke();
+
+        ctx.translate(0, 0);
+    }
+
+    function drawRedArk()    {
+        if(on_time == null)
+            return;
+        
+        bh = on_time.getHours(); 
+        bm = on_time.getMinutes();
+        bs = on_time.getSeconds();
+
+        eh = off_time.getHours(); 
+        em = off_time.getMinutes();
+        es = off_time.getSeconds();
+
+        begin = getHourPosition(bh, bm, bs);
+        end   = getHourPosition(eh, em, es);
+
+        start_pos = begin;
+        end_pos   = end;
+        
+        rotate_90_degreees = Math.PI * 0.5;
+
+        ctx.rotate(-rotate_90_degreees);
+        ctx.moveTo(0, 0);
+
+        ctx.arc(0, 0, radius * 0.95, 
+                start_pos, end_pos);
+        ctx.lineWidth=30;
+        hold = ctx.fillStyle;
+        ctx.fillStyle="red";
+        ctx.fill();
+        ctx.fillStyle = hold;
+        ctx.rotate(rotate_90_degreees);
+    }
+
+    function getHourPosition(hour, minute, second)   {
+        retval = hour % 12;
+        retval = (retval * Math.PI / 6) +
+                 (minute * Math.PI / (6 * 60)) +
+                 (second * Math.PI / (360 * 60));
+
+        return retval;
+    }
+
+    function drawFace() {
+        var grad;
+        ctx.beginPath();
+        ctx.arc(0, 0, radius, 0, 2 * Math.PI);
+        ctx.fillStyle = 'white';
+        ctx.fill();
+        grad = ctx.createRadialGradient(0, 0, radius * 0.95, 0, 0, radius * 1.05);
+        grad.addColorStop(0, '#333');
+        grad.addColorStop(0.5, 'white');
+        grad.addColorStop(1, '#333');
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = radius * 0.1;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(0, 0, radius * 0.1, 0, 2 * Math.PI);
+        ctx.fillStyle = '#333';
+        ctx.fill();
+
+        drawRedArk();
+    }
+
+    function drawNumbers() {
+        var ang;
+        var num;
+        ctx.font = radius * 0.15 + "px arial";
+        ctx.textBaseline = "middle";
+        ctx.textAlign = "center";
+        for (num = 1; num < 13; num++) {
+            ang = num * Math.PI / 6;
+            ctx.rotate(ang);
+            ctx.translate(0, -radius * 0.85);
+            ctx.rotate(-ang);
+            ctx.fillText(num.toString(), 0, 0);
+            ctx.rotate(ang);
+            ctx.translate(0, radius * 0.85);
+            ctx.rotate(-ang);
+        }
+    }
+
+    function drawTime() {
+        var now = t;
+
+        var hour = now.getHours();
+        var minute = now.getMinutes();
+        var second = now.getSeconds();
+        //hour
+        hour = hour % 12;
+        hour = (hour * Math.PI / 6) +
+               (minute * Math.PI / (6 * 60)) +
+               (second * Math.PI / (360 * 60));
+        drawHand(hour, radius * 0.5, radius * 0.07);
+        //minute
+        minute = (minute * Math.PI / 30) + (second * Math.PI / (30 * 60));
+        drawHand(minute, radius * 0.8, radius * 0.07);
+        // second
+        second = (second * Math.PI / 30);
+        drawHand(second, radius * 0.9, radius * 0.02);
+    }
+
+    function drawHand(pos, length, width) {
+        ctx.beginPath();
+        ctx.lineWidth = width;
+        ctx.lineCap = "round";
+        ctx.moveTo(0, 0);
+        ctx.rotate(pos);
+        ctx.lineTo(0, -length);
+        ctx.stroke();
+        ctx.rotate(-pos);
+    }
+
+</script>
+
+</body>
+</html>
