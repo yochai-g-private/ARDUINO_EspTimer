@@ -15,10 +15,22 @@
     </canvas>
 </div>
 <br/><br/>
+<form>
+    <label class="Large" for="START_AT" id="START_AT_L" >Start at:</label>
+    <input class="Large" type="time" id="START_AT" >
+</form>
+
+<form>
+    <label class="Large" for="STOP_AT"  id="STOP_AT_L" >End at :</label>
+    <input class="Large" type="time" id="STOP_AT" height="30">
+</form>
+  
 <div style = "text-align:center;">
-    <a id="START">  <button class="button button_GREEN" onclick="OnSTART()">START</button></a><br><br>
-    <a id="STOP">   <button class="button button_RED"   onclick="OnSTOP()">STOP</button></a><br>
-    <p id="TEMPERATURE"><strong>%TEMPERATURE%</strong></p><br>
+    <a id="START">  <button id="START_B" class="button button_GREEN" style="margin:10px;" onclick="OnSTART()" hidden>START</button></a>
+    <a id="STOP">   <button id="STOP_B"  class="button button_RED"   style="margin:10px;" onclick="OnSTOP()"  hidden>STOP</button></a><br>
+    <a id="TEMPERATURE"><strong>%TEMPERATURE%</strong></a>
+    <a id="DEBUG_VALUE" hidden>?</a>
+
 </div>
 
 <script>
@@ -28,6 +40,8 @@
     var t;
     var cx;
     var cy;
+    var started;
+    var update_start_end = true;
 
     function send_post(url) {
         var xhttp = new XMLHttpRequest();
@@ -36,27 +50,38 @@
         refreshData();
     }
 
-    function OnSTART() {
-        send_post("/h/start");
-    }
-
-    function OnSTOP() {
-        send_post("/h/stop");
-    }
-
     function trace(msg) {
         alert(msg);
     }
 
+    function t2s(t) {
+        return Math.trunc(t.getTime() / 1000);
+    }
 
-    var on_time = null;
-    var off_time = null;
+    function s2t(s) {
+        return new Date(s * 1000);
+    }
+
+    var seconds_counter = 0;
+    var force_refresh = false;
+
+    var on_time = new Date();
+    var off_time = new Date();
+
     var default_seconds;
 
+    var start_seconds = 0;
+    var end_seconds = 0;
+    var default_seconds = 0;
+
     function OnLoad() {
-        start_seconds = 0;
-        end_seconds = 0;
-        default_seconds = 0;
+        document.getElementById("START_AT_L").style.display = "none";
+        document.getElementById("START_AT").style.display = "none";
+        //document.getElementById("START_B").style.display = "none";
+
+        document.getElementById("STOP_AT_L").style.display = "none";
+        document.getElementById("STOP_AT").style.display = "none";
+        //document.getElementById("STOP_B").style.display = "none";
 
         clk = document.getElementById("clk");
         ctx = clk.getContext("2d");
@@ -69,11 +94,38 @@
 
         radius = radius * 0.90;
 
+        refreshNow();
+
+        setInterval(refresh, 1000);
+    }
+
+    function refresh()
+    {
         refreshData();
         drawClock();
-        setInterval(refreshData, 5000);
-        setInterval(drawClock, 1000);
     }
+
+    function refreshNow()
+    {
+        force_refresh = true;
+        refresh();
+        force_refresh = false;
+    }
+
+    function roundSecondsToMinutes(n)
+    {
+        return n - (n % 60);
+    }   
+
+    function roundToMinutes(t)
+    {
+        temp = new Date(t);
+        temp.setSeconds(0);
+        return temp;
+    }   
+
+    //var on_input = null;
+    //var off_input = null;
 
     function setData(text)  {
         arr = text.split(";");
@@ -81,29 +133,163 @@
         end_seconds = parseInt(arr[1]);
         default_seconds = parseInt(arr[2]);
 
+        now_seconds = t2s(new Date());
+        
+        prev_on  = t2s(on_time);
+        prev_off = t2s(off_time);
+
+        on_time = new Date();
+        off_time = new Date();
+
+        prev_started = started;
+
         if(!end_seconds)
         {
-            on_time = off_time = null;
+            started = false;
+
+            on_time  = s2t(now_seconds);
+            off_time = s2t(now_seconds + default_seconds);
+        }
+        else
+        {
+            if (start_seconds > 0)  started = false;
+            else                    started = true;
+
+            on_time  = s2t(now_seconds + start_seconds);
+            off_time = s2t(now_seconds + end_seconds);
+        }
+
+        document.getElementById("STOP_AT_L").style.display = "inline";
+        document.getElementById("STOP_AT").style.display = "inline";
+
+        start_b = document.getElementById("START_B");
+        stop_b  = document.getElementById("STOP_B");
+
+        if(end_seconds) {
+            start_b.innerText = "UPDATE";
+
+            if(started)
+                stop_b.innerText = "STOP";
+            else
+                stop_b.innerText = "CANCEL";
+        }
+        else    {
+            start_b.innerText = "START";
+        }
+
+        if (started)
+        {
+            stop_b.style.display = "inline";
+
+            document.getElementById("START_AT_L").style.display = "none";
+            document.getElementById("START_AT").style.display = "none";
+        }
+        else            
+        {
+            if(end_seconds) stop_b.style.display = "inline";
+            else            stop_b.style.display = "none";
+
+            document.getElementById("START_AT_L").style.display = "inline";
+            document.getElementById("START_AT").style.display = "inline";
+        }
+
+        if(prev_started && !started)
+            update_start_end = true;
+
+        if(update_start_end)
+        {
+            document.getElementById("START_AT").value = roundToMinutes(on_time).toLocaleTimeString('en-GB');
+            document.getElementById("STOP_AT").value  = roundToMinutes(off_time).toLocaleTimeString('en-GB');
+
+            update_start_end = false;
+        }
+    }
+
+    function addDay(t)
+    {
+        retval = new Date(t);
+        retval.setTime(retval.getTime() + 86400 * 1000);
+        return retval;
+    }
+
+    function OnSTART() {
+        const today = new Date();
+        start_time  = new Date(today.toDateString() + ' ' + document.getElementById("START_AT").value);
+        end_time    = new Date(today.toDateString() + ' ' + document.getElementById("STOP_AT").value);
+
+        if(start_time < today)   {
+            if(t2s(today) - t2s(start_time) >= 3600)    {
+                start_time = addDay(start_time);
+            } else {
+                start_time = today;
+            }
+        }
+
+        if(end_time < start_time)   {
+            end_time = addDay(end_time);
+        }
+
+        on_seconds  = t2s(start_time) - t2s(today);
+        off_seconds = t2s(end_time)   - t2s(today);
+
+        //alert(on_seconds + "\n" + off_seconds);
+
+        max_hours = 15;
+
+        if(on_seconds >= off_seconds ||
+           off_seconds - on_seconds > max_hours * 3600)   {
+            if(started)
+                alert("'End at' time limited to " + max_hours + " hours!");
+            else
+                alert("'Start at' time must be before 'End at' time!");
             return;
         }
 
-        on_time  = new Date();
-        off_time = new Date();
+        request = "/h/start?on=" + on_seconds + "&off=" + off_seconds;
 
-        on_time.setSeconds(on_time.getSeconds() + start_seconds);
-        off_time.setSeconds(off_time.getSeconds() + end_seconds);
+        send_post(request);
+/*
+        alert(start_time + "\n" + 
+              end_time + "\n" +
+              t2s(start_time) + "\n" +
+              t2s(end_time) + "\n" +
+              on_seconds + "\n" +
+              off_seconds + "\n" +
+              request);
+*/
+        refreshNow();              
     }
+
+    function OnSTOP() {
+        send_post("/h/stop");
+        refreshNow();              
+    }
+
+    var connected;
 
     function refreshData()    {
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange = function () {
             if (this.readyState == 4 && this.status == 200) {
                 setData(this.responseText);
+                connected = true;
+            } else {
+                if(connected)
+                {
+                    //alert("Connection lost");
+                    connected = false;
+                }
             }
-        };
+        }
 
-        xhttp.open("GET", "/h/data", true);
-        xhttp.send();
+        now = new Date();
+        
+        if(force_refresh || seconds_counter == 0 || now.getSeconds() % 5 == 0) {
+            xhttp.open("GET", "/h/data", true);
+            xhttp.send();
+        }
+
+        seconds_counter += 1;
     }
 
     function drawClock() {
@@ -124,6 +310,9 @@
         if(on_time == null)
             return;
         
+        if(!end_seconds)
+            return;
+
         bh = on_time.getHours(); 
         bm = on_time.getMinutes();
         bs = on_time.getSeconds();
@@ -132,12 +321,11 @@
         em = off_time.getMinutes();
         es = off_time.getSeconds();
 
-        begin = getHourPosition(bh, bm, bs);
-        end   = getHourPosition(eh, em, es);
+        document.getElementById("DEBUG_VALUE").innerText = default_seconds;
 
-        start_pos = begin;
-        end_pos   = end;
-        
+        start_pos = getHourPosition(bh, bm, bs);
+        end_pos   = getHourPosition(eh, em, es);
+
         rotate_90_degreees = Math.PI * 0.5;
 
         ctx.rotate(-rotate_90_degreees);
@@ -147,7 +335,10 @@
                 start_pos, end_pos);
         ctx.lineWidth=30;
         hold = ctx.fillStyle;
-        ctx.fillStyle="red";
+        
+        if(started) ctx.fillStyle="red";
+        else        ctx.fillStyle="orange";
+
         ctx.fill();
         ctx.fillStyle = hold;
         ctx.rotate(rotate_90_degreees);

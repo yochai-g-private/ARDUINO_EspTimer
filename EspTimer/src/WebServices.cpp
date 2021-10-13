@@ -182,10 +182,25 @@ void InitializeWebServices()
 
     server.on("/h/start", HTTP_POST, [](AsyncWebServerRequest *request) {
         LOGGER << request->url() << NL;
-        CancelRelayOnTimer(); 
-        SetRelayStatus(true);
-        SetRelayOffTimer(settings.default_on_minutes);
-        });
+
+        uint32_t on  = 0,
+                 off = 0;
+
+        bool on_used  = GetUnsignedLongParam(*request, "on", on);    
+        bool off_used = GetUnsignedLongParam(*request, "off",   off);
+
+        LOGGER << "on=" << on << ", off=" << off << NL;
+
+        if(on_used && off_used)
+        {
+            CancelRelayOnTimer(); 
+            CancelRelayOffTimer(); 
+
+            if(on)  SetRelayOnTimerSeconds(on);
+            else    SetRelayStatus(true);
+            
+            SetRelayOffTimerSeconds(off);
+        }});
 
     server.on("/h/stop", HTTP_POST, [](AsyncWebServerRequest *request) {
         LOGGER << request->url() << NL;
@@ -202,10 +217,11 @@ void InitializeWebServices()
     server.on("/m/start", HTTP_GET, [](AsyncWebServerRequest *request) {
         LOGGER << request->url() << NL;
 
+        #define set_max(val, max_val)   if(val > max_val)   val = max_val; else
+
         uint32_t on_minutes  = 0,
                  off_minutes = 0;
 
-        #define set_max(val, max_val)   if(val > max_val)   val = max_val; else
         bool on_minutes_used  = GetUnsignedLongParam(*request, "delay", on_minutes);    set_max(on_minutes,  settings.max_on_delay_minutes);
         bool off_minutes_used = GetUnsignedLongParam(*request, "off",   off_minutes);   set_max(off_minutes, settings.max_off_delay_minutes);
 
@@ -271,11 +287,18 @@ void InitializeWebServices()
         {
             set_wifi(3, arg);
         }
+        bool use;
+        if (GetBoolParam(*request, "use",  use))
+        {
+            settings.use_WIFI = use;
+            settings.Store();
+        }
 
         int WIFI_idx = GetWiFiIndex();
         const char* connected = (WIFI_idx < 0 || WIFI_idx >= countof(settings.WIFI)) ? "?" : settings.WIFI[WIFI_idx].SSID();
 
-        String text;
+        String text = "use=";
+        text = text + ONOFF(settings.use_WIFI).Get() + "\n";
 
         for(int idx = 0; idx < countof(settings.WIFI); idx++)
         {

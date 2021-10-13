@@ -49,12 +49,14 @@ void SetRelayStatus(bool on);
 long GetOnSeconds();
 long GetOffSeconds();
 
-void SetRelayOffTimer(uint32_t minutes);
-#define CancelRelayOffTimer()   SetRelayOffTimer(0)
+void SetRelayOffTimerSeconds(uint32_t seconds);
+inline void SetRelayOffTimer(uint32_t minutes)             { SetRelayOffTimerSeconds(minutes * SECONDS_PER_MINUTE); }
+#define CancelRelayOffTimer()   SetRelayOffTimerSeconds(0)
 int32_t GetRelayOffSeconds();
 
-void SetRelayOnTimer(uint32_t minutes);
-#define CancelRelayOnTimer()   SetRelayOnTimer(0)
+void SetRelayOnTimerSeconds(uint32_t seconds);
+inline void SetRelayOnTimer(uint32_t minutes)             { SetRelayOnTimerSeconds(minutes * SECONDS_PER_MINUTE); }
+#define CancelRelayOnTimer()   SetRelayOnTimerSeconds(0)
 int32_t GetRelayOnSeconds();
 
 float GetTemperature();

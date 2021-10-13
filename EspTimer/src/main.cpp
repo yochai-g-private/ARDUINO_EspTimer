@@ -233,10 +233,8 @@ void SetRelayStatus(bool on)
     st_on_at = (on) ? millis() : 0;
 }
 //-----------------------------------------------------------
-void SetRelayOffTimer(uint32_t minutes)
+void SetRelayOffTimerSeconds(uint32_t seconds)
 {
-    uint32_t seconds = minutes * SECONDS_PER_MINUTE;
-
     if(seconds)     { st_relay_off_timer.StartOnce(seconds * 1000); LOGGER << "Relay OFF timer set for " << ConvertToHuman(seconds) << NL;  }
     else            { st_relay_off_timer.Stop();                    LOGGER << "Relay OFF timer canceled" << NL;                             }
 }
@@ -247,10 +245,8 @@ int32_t GetRelayOffSeconds()
     return retval < 0 ? retval : retval / 1000;
 }
 //-----------------------------------------------------------
-void SetRelayOnTimer(uint32_t minutes)
+void SetRelayOnTimerSeconds(uint32_t seconds)
 {
-    uint32_t seconds = minutes * SECONDS_PER_MINUTE;
-
     SetRelayStatus(false);
 
     if(seconds)     { st_relay_on_timer.StartOnce(seconds * 1000); LOGGER << "Relay ON timer set for " << ConvertToHuman(seconds) << NL;  }
