@@ -63,3 +63,5 @@ float GetTemperature();
 void ScheduleRestart(uint32_t seconds);
 
 String ConvertToHuman(int32_t seconds);
+int GetWiFiIndex();
+

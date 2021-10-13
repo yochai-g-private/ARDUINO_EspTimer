@@ -1,5 +1,9 @@
 #include "main.h"
 #include "WebServices.h"
+
+#include "Location.h"
+#include "Sun.h"
+
 #include <AsyncElegantOTA.h>
 #include <LittleFS.h>
 
@@ -24,21 +28,6 @@ void SendInfo(const char* s, AsyncWebServerRequest& request)
 void SendError(const char* s, AsyncWebServerRequest& request, unsigned int code)
 {
     SendErrorText(s, request, code, NULL, FONT_SIZE);
-}
-
-static void set_wifi(int idx, const String& ssid_pass)
-{
-    idx--;
-
-    int sepidx = ssid_pass.indexOf(':');
-    if(sepidx < 1)
-        return;
-
-    String SSID = ssid_pass.substring(0, sepidx);
-    String pass = ssid_pass.substring(sepidx + 1);
-
-    settings.WIFI[idx].Set(SSID.c_str(), pass.c_str(), IPAddress());
-    settings.Store();
 }
 
 static String get_relay_status()
@@ -72,6 +61,11 @@ static void cancel()
     SetRelayStatus(false);
     CancelRelayOffTimer();
     CancelRelayOnTimer();
+}
+
+namespace NYG
+{
+	extern bool gbl_DST;
 }
 
 void InitializeWebServices()
@@ -157,12 +151,6 @@ void InitializeWebServices()
         request->send(LittleFS, "/index.html", String(), false, processor);
         });
 
-    server.on("----------------/style.css", HTTP_GET, [](AsyncWebServerRequest *request) {
-        LOGGER << request->url() << NL;
-        //SendInfo("INDEX.HTML requested", *request);
-        request->send(LittleFS, "/style.css", String(), false, [](const String& var) { return var; });
-        });
-
     //server.serveStatic("/style.css",    SPIFFS,     "/style.css")   .setLastModified(last_modified);
     //server.serveStatic("/Clock.gif",    SPIFFS,     "/Clock.gif")   .setLastModified(last_modified);
     //server.serveStatic("/icon.gif",     SPIFFS,     "/icon.gif")    .setLastModified(last_modified);
@@ -186,7 +174,7 @@ void InitializeWebServices()
         uint32_t on  = 0,
                  off = 0;
 
-        bool on_used  = GetUnsignedLongParam(*request, "on", on);    
+        bool on_used  = GetUnsignedLongParam(*request, "on",    on);    
         bool off_used = GetUnsignedLongParam(*request, "off",   off);
 
         LOGGER << "on=" << on << ", off=" << off << NL;
@@ -205,6 +193,50 @@ void InitializeWebServices()
     server.on("/h/stop", HTTP_POST, [](AsyncWebServerRequest *request) {
         LOGGER << request->url() << NL;
         cancel();
+        });
+
+    server.on("/h/now", HTTP_GET, [](AsyncWebServerRequest *request) {
+        LOGGER << request->url() << NL;
+        uint32_t now;
+        bool     dst;
+        
+        bool now_used  = GetUnsignedLongParam(*request, "now", now);    
+        bool dst_used  = GetBoolParam        (*request, "dst", dst);
+
+        char response[256] = { 0 };
+
+        if(now_used && dst_used)
+        {
+            if(dst)
+                now -= SECONDS_PER_HOUR;
+
+            FixTime::Set(FixTime(now));
+            gbl_DST = dst;
+
+            FixTime riseTime, setTime;
+
+            if(Sun::GetTodayLocalRiseSetTimes(riseTime, setTime))
+            {
+                TimeText rt = DstTime(riseTime).ToText(),
+                         st = DstTime(setTime).ToText();
+                TimeTextFields& rtf = (TimeTextFields&)rt,
+                              & stf = (TimeTextFields&)st;
+
+                rtf.time[5] = 0;
+                stf.time[5] = 0;
+
+                sprintf(response, "%s;%s;%lu;%lu",
+                        rtf.time,
+                        stf.time,
+                        riseTime.GetSeconds(),
+                        setTime.GetSeconds());
+
+                LOGGER << response << NL;                 
+            }
+
+            SendText(response, *request);
+
+        }
         });
 
     settings.InitializeWebServices(server);
@@ -265,105 +297,6 @@ void InitializeWebServices()
         cancel();
 
         SendInfo(get_relay_status().c_str(), *request);
-        });
-
-    int GetWiFiIndex();
-
-    server.on("/m/wifi", HTTP_GET, [](AsyncWebServerRequest *request) {
-        LOGGER << request->url() << NL;
-
-        String arg;
-        Times  times;
-
-        if (GetStringParam(*request, "1",  arg))
-        {
-            set_wifi(1, arg);
-        }
-        if (GetStringParam(*request, "2",  arg))
-        {
-            set_wifi(2, arg);
-        }
-        if (GetStringParam(*request, "3",  arg))
-        {
-            set_wifi(3, arg);
-        }
-        bool use;
-        if (GetBoolParam(*request, "use",  use))
-        {
-            settings.use_WIFI = use;
-            settings.Store();
-        }
-
-        int WIFI_idx = GetWiFiIndex();
-        const char* connected = (WIFI_idx < 0 || WIFI_idx >= countof(settings.WIFI)) ? "?" : settings.WIFI[WIFI_idx].SSID();
-
-        String text = "use=";
-        text = text + ONOFF(settings.use_WIFI).Get() + "\n";
-
-        for(int idx = 0; idx < countof(settings.WIFI); idx++)
-        {
-            int WIFI_idx = settings.WIFI_order[idx] - '1';
-
-            if(WIFI_idx < 0 || WIFI_idx >= countof(settings.WIFI))
-                continue;
-
-            if(!*settings.WIFI[WIFI_idx].SSID())
-                continue;
-
-            char line[128];
-
-            sprintf(line, "%d. %s%s\n", 
-                    WIFI_idx + 1, 
-                    strequal(settings.WIFI[WIFI_idx].SSID(),connected) ? "*" : "",
-                    settings.WIFI[WIFI_idx].SSID());
-
-            text += line;
-        }
-
-        SendInfo(text.c_str(), *request);
-        });
-
-    server.on("/m/wifi_order", HTTP_GET, [](AsyncWebServerRequest *request) {
-        LOGGER << request->url() << NL;
-        String arg;
-        if (GetStringParam(*request, "set",  arg))
-        {
-            const char* order = arg.c_str();
-            if(!*order)
-                order = "321";
-
-            bool OK = (0 != *order);
-
-            for(int idx = 0; OK && order[idx]; idx++)
-            {
-                int order_idx = order[idx] - '0';
-                OK = order_idx >= 1 && order_idx <= countof(settings.WIFI);
-            }
-
-            if(OK)
-            {
-                strncpy(settings.WIFI_order, order, countof(settings.WIFI));
-                settings.Store();
-            }
-        }
-
-        SendInfo(settings.WIFI_order, *request);
-        });
-
-   server.on("/m/led", HTTP_GET, [](AsyncWebServerRequest *request) {
-        LOGGER << request->url() << NL;
-        bool arg;
-        if (GetBoolParam(*request, "set",  arg))
-        {
-            if(!arg)
-                gbl_led.Off();
-                
-            settings.use_led = arg;
-
-            settings.Store();
-        }
-
-        SendInfo(ONOFF(settings.use_led).Get(), *request);
         });
 
     server.on("/m/temperature", HTTP_GET, [](AsyncWebServerRequest *request) {

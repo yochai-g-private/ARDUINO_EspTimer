@@ -89,10 +89,69 @@ namespace NYG
         MAX_RELAY_MINUTES,                  //max_on_delay_minutes
         MAX_RELAY_MINUTES,                  //max_off_delay_minutes
 
+        true,                               //night_only
     };
 
     Settings settings;
 };
+//------------------------------------------------------
+static bool set_AP(APDef& AP, const String& ssid_pass, AsyncWebServerRequest *request)
+{
+    int sepidx = ssid_pass.indexOf(':');
+
+    if(sepidx < 1)
+    {
+        SendError("Invalid SSIP:pass format", *request);
+        return false;
+    }
+
+    String SSID = ssid_pass.substring(0, sepidx);
+    String pass = ssid_pass.substring(sepidx + 1);
+
+    const char* error = NULL;
+
+    if(SSID.length() < 1)
+        error = "Invalid SSID";
+    else if(pass.length() < 8)
+        error = "Invalid password";
+
+    if(error)
+    {
+        SendError(error, *request);
+        return false;
+    }
+
+    AP.Set(SSID.c_str(), pass.c_str());
+    settings.Store();
+
+    return true;
+}
+//------------------------------------------------------
+/*
+static const char* set_wifi(int idx, const String& ssid_pass)
+{
+#if 1
+    return set_AP(settings.WIFI[idx-1], ssid_pass);
+#else
+    idx--;
+
+    int sepidx = ssid_pass.indexOf(':');
+    if(sepidx < 1)
+        return;
+
+    String SSID = ssid_pass.substring(0, sepidx);
+    String pass = ssid_pass.substring(sepidx + 1);
+
+    settings.WIFI[idx].Set(SSID.c_str(), pass.c_str(), IPAddress());
+    settings.Store();
+#endif
+}
+*/
+//------------------------------------------------------
+static bool set_wifi(int idx, const String& ssid_pass, AsyncWebServerRequest *request)
+{
+    return set_AP(settings.WIFI[idx-1], ssid_pass, request);
+}
 //------------------------------------------------------
 void Settings::InitializeWebServices(AsyncWebServer& server)
 {
@@ -102,14 +161,170 @@ void Settings::InitializeWebServices(AsyncWebServer& server)
         Html::h1 root("Settings restored to factory default.\nRestarting ...");
         SendElement(root, *request);
         ScheduleRestart(1);
-        });
+    });
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    server.on("/m/settings/AP", HTTP_GET, [](AsyncWebServerRequest *request) {
+        String arg;
+        if (GetStringParam(*request, "set",  arg))
+        {
+            if(!set_AP(settings.AP, arg, request))
+                return;
+        }
 
-    server.on("/m/settings", HTTP_GET, [](AsyncWebServerRequest *request) {
+        SendInfo(settings.AP.SSID(), *request);
+    });
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    server.on("/m/settings/host_name", HTTP_GET, [](AsyncWebServerRequest *request) {
+        String arg;
+        if (GetStringParam(*request, "set",  arg))
+        {
+            if(arg == "")
+                arg = PRODUCT_NAME;
+            
+            strncpy(settings.host_name, arg.c_str(), countof(settings.host_name));
+            settings.Store();
+        }
+
+        SendInfo(settings.host_name, *request);
+    });
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    server.on("/m/settings/instance_title", HTTP_GET, [](AsyncWebServerRequest *request) {
+        String arg;
+        if (GetStringParam(*request, "set",  arg))
+        {
+            if(arg == "")
+                arg = PRODUCT_NAME;
+            
+            strncpy(settings.instance_title, arg.c_str(), countof(settings.instance_title));
+            settings.Store();
+        }
+
+        SendInfo(settings.instance_title, *request);
+    });
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    server.on("/m/settings/wifi", HTTP_GET, [](AsyncWebServerRequest *request) {
         LOGGER << request->url() << NL;
 
-        SendInfo("?????", *request); //TODO
+        String arg;
+        Times  times;
 
-        });
+        if (GetStringParam(*request, "1",  arg))
+        {
+            if(!set_wifi(1, arg, request))
+                return;
+        }
+        if (GetStringParam(*request, "2",  arg))
+        {
+            if(!set_wifi(2, arg, request))
+                return;
+        }
+        if (GetStringParam(*request, "3",  arg))
+        {
+            if(!set_wifi(3, arg, request))
+                return;
+        }
 
+        bool use;
+        if (GetBoolParam(*request, "use",  use))
+        {
+            settings.use_WIFI = use;
+            settings.Store();
+        }
+
+        int WIFI_idx = GetWiFiIndex();
+        const char* connected = (WIFI_idx < 0 || WIFI_idx >= countof(settings.WIFI)) ? "?" : settings.WIFI[WIFI_idx].SSID();
+
+        String text = "use=";
+        text = text + ONOFF(settings.use_WIFI).Get() + "\n";
+
+        for(int idx = 0; idx < countof(settings.WIFI); idx++)
+        {
+            int WIFI_idx = settings.WIFI_order[idx] - '1';
+
+            if(WIFI_idx < 0 || WIFI_idx >= countof(settings.WIFI))
+                continue;
+
+            if(!*settings.WIFI[WIFI_idx].SSID())
+                continue;
+
+            char line[128];
+
+            sprintf(line, "%d. %s%s\n", 
+                    WIFI_idx + 1, 
+                    strequal(settings.WIFI[WIFI_idx].SSID(),connected) ? "*" : "",
+                    settings.WIFI[WIFI_idx].SSID());
+
+            text += line;
+        }
+
+        SendInfo(text.c_str(), *request);
+    });
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    server.on("/m/settings/wifi_order", HTTP_GET, [](AsyncWebServerRequest *request) {
+        LOGGER << request->url() << NL;
+        String arg;
+        if (GetStringParam(*request, "set",  arg))
+        {
+            const char* order = arg.c_str();
+            if(!*order)
+                order = "321";
+
+            bool OK = (0 != *order);
+
+            for(int idx = 0; OK && order[idx]; idx++)
+            {
+                int order_idx = order[idx] - '0';
+                OK = order_idx >= 1 && order_idx <= countof(settings.WIFI);
+            }
+
+            if(OK)
+            {
+                strncpy(settings.WIFI_order, order, countof(settings.WIFI));
+                settings.Store();
+            }
+        }
+
+        SendInfo(settings.WIFI_order, *request);
+    });
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    server.on("/m/settings/led", HTTP_GET, [](AsyncWebServerRequest *request) {
+        LOGGER << request->url() << NL;
+        bool arg;
+        if (GetBoolParam(*request, "set",  arg))
+        {
+            if(!arg)
+                gbl_led.Off();
+                
+            settings.use_led = arg;
+
+            settings.Store();
+        }
+
+        SendInfo(ONOFF(settings.use_led).Get(), *request);
+    });
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    server.on("/m/settings/default_on_minutes", HTTP_GET, [](AsyncWebServerRequest *request) {
+        LOGGER << request->url() << NL;
+        uint16_t arg;
+        if (GetUnsignedShortParam(*request, "set",  arg))
+        {
+            settings.default_on_minutes = arg;
+            settings.Store();
+        }
+
+        SendInfo(String(settings.default_on_minutes).c_str(), *request);
+    });
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    server.on("/m/settings/night_only", HTTP_GET, [](AsyncWebServerRequest *request) {
+        LOGGER << request->url() << NL;
+        bool arg;
+        if (GetBoolParam(*request, "set",  arg))
+        {
+            settings.night_only = arg;
+            settings.Store();
+        }
+
+        SendInfo(ONOFF(settings.night_only).Get(), *request);
+    });
 }
 //------------------------------------------------------

@@ -30,7 +30,9 @@ call :Link_NYG              Logger
 call :Link_NYG              Html
 call :Link_NYG              IOutput
 call :Link_NYG              Observer
-rem call :Link_NYG              TimeEx
+call :Link_NYG              TimeEx
+call :Link_NYG              Location
+call :Link_NYG              Sun
 rem call :Link_NYG              RTC
 rem call :Link_NYG              Location
 rem call :Link_NYG              Scheduler

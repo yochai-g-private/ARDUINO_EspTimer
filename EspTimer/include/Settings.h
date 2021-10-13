@@ -31,6 +31,8 @@ namespace NYG
                             max_on_delay_minutes,
                             max_off_delay_minutes;
 
+        bool                night_only;
+
     	//=============================================================
 
         static const Settings& GetDefault();

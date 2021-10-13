@@ -12,7 +12,9 @@
 
 <div style = "text-align:center;">
     <canvas id ="clk" width="300" height="300" style="position:relative; margin:auto">
-    </canvas>
+    </canvas><br>
+    <a id="TEMPERATURE"><strong>%TEMPERATURE%</strong></a><br>
+    <b id="SUN"></b>
 </div>
 <br/><br/>
 <form>
@@ -28,8 +30,8 @@
 <div style = "text-align:center;">
     <a id="START">  <button id="START_B" class="button button_GREEN" style="margin:10px;" onclick="OnSTART()" hidden>START</button></a>
     <a id="STOP">   <button id="STOP_B"  class="button button_RED"   style="margin:10px;" onclick="OnSTOP()"  hidden>STOP</button></a><br>
-    <a id="TEMPERATURE"><strong>%TEMPERATURE%</strong></a>
-    <a id="DEBUG_VALUE" hidden>?</a>
+    <a id="DEBUG_VALUE"></a>
+    <P id="ERROR" style="color:red; font-size:20px;"><strong></strong></p>
 
 </div>
 
@@ -42,6 +44,8 @@
     var cy;
     var started;
     var update_start_end = true;
+    var sunRise;
+    var sunSet;
 
     function send_post(url) {
         var xhttp = new XMLHttpRequest();
@@ -54,12 +58,37 @@
         alert(msg);
     }
 
-    function t2s(t) {
-        return Math.trunc(t.getTime() / 1000);
+    function d2s(d) {
+        return Math.trunc(d.getTime() / 1000);
     }
 
-    function s2t(s) {
+    function s2d(s) {
         return new Date(s * 1000);
+    }
+
+    Date.prototype.stdTimezoneOffset = function() {
+        var jan = new Date(this.getFullYear(), 0, 1);
+        var jul = new Date(this.getFullYear(), 6, 1);
+        return Math.max(jan.getTimezoneOffset(), jul.getTimezoneOffset());
+    }
+
+    Date.prototype.dst = function() {
+        return this.getTimezoneOffset() < this.stdTimezoneOffset();
+    }
+
+    function offsetSeconds(d)   {
+        return d.getTimezoneOffset() * 60;
+    }
+
+    function FixTime(d)  {
+        return d2s(d) - offsetSeconds(d);
+    }
+
+    function JavaTime(s)  {
+        d = new Date();
+        s += offsetSeconds(d);
+
+        return s2d(s);
     }
 
     var seconds_counter = 0;
@@ -94,6 +123,7 @@
 
         radius = radius * 0.90;
 
+        getSun();
         refreshNow();
 
         setInterval(refresh, 1000);
@@ -127,16 +157,32 @@
     //var on_input = null;
     //var off_input = null;
 
+    function setSun(text)  {
+        //document.getElementById("DEBUG_VALUE").innerText = text;
+
+        arr = text.split(";");
+        sunRiseText = arr[0];
+        sunSetText  = arr[1];
+        sunRiseSeconds = parseInt(arr[2]);
+        sunSetSeconds  = parseInt(arr[3]);
+
+        sunRise = JavaTime(sunRiseSeconds);
+        sunSet  = JavaTime(sunSetSeconds);
+
+        var sun = sunRiseText + " - " + sunSetText;
+        document.getElementById("SUN").innerText = sun;
+    }
+
     function setData(text)  {
         arr = text.split(";");
         start_seconds = parseInt(arr[0]);
         end_seconds = parseInt(arr[1]);
         default_seconds = parseInt(arr[2]);
 
-        now_seconds = t2s(new Date());
+        now_seconds = d2s(new Date());
         
-        prev_on  = t2s(on_time);
-        prev_off = t2s(off_time);
+        prev_on  = d2s(on_time);
+        prev_off = d2s(off_time);
 
         on_time = new Date();
         off_time = new Date();
@@ -147,16 +193,16 @@
         {
             started = false;
 
-            on_time  = s2t(now_seconds);
-            off_time = s2t(now_seconds + default_seconds);
+            on_time  = s2d(now_seconds);
+            off_time = s2d(now_seconds + default_seconds);
         }
         else
         {
             if (start_seconds > 0)  started = false;
             else                    started = true;
 
-            on_time  = s2t(now_seconds + start_seconds);
-            off_time = s2t(now_seconds + end_seconds);
+            on_time  = s2d(now_seconds + start_seconds);
+            off_time = s2d(now_seconds + end_seconds);
         }
 
         document.getElementById("STOP_AT_L").style.display = "inline";
@@ -218,7 +264,7 @@
         end_time    = new Date(today.toDateString() + ' ' + document.getElementById("STOP_AT").value);
 
         if(start_time < today)   {
-            if(t2s(today) - t2s(start_time) >= 3600)    {
+            if(d2s(today) - d2s(start_time) >= 3600)    {
                 start_time = addDay(start_time);
             } else {
                 start_time = today;
@@ -229,10 +275,8 @@
             end_time = addDay(end_time);
         }
 
-        on_seconds  = t2s(start_time) - t2s(today);
-        off_seconds = t2s(end_time)   - t2s(today);
-
-        //alert(on_seconds + "\n" + off_seconds);
+        on_seconds  = d2s(start_time) - d2s(today);
+        off_seconds = d2s(end_time)   - d2s(today);
 
         max_hours = 15;
 
@@ -251,8 +295,8 @@
 /*
         alert(start_time + "\n" + 
               end_time + "\n" +
-              t2s(start_time) + "\n" +
-              t2s(end_time) + "\n" +
+              d2s(start_time) + "\n" +
+              d2s(end_time) + "\n" +
               on_seconds + "\n" +
               off_seconds + "\n" +
               request);
@@ -266,6 +310,33 @@
     }
 
     var connected;
+
+    function getSun()
+    {
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function () {
+            if (this.readyState == 4 && this.status == 200) {
+                setSun(this.responseText);
+                connected = true;
+            } else {
+                if(connected)
+                {
+                    //alert("Connection lost");
+                    connected = false;
+                }
+            }
+        }
+
+        now = new Date();
+
+        fix_seconds = FixTime(now);
+        dst         = now.dst();
+
+        request = "/h/now?now=" + fix_seconds + "&dst=" + dst;
+
+        xhttp.open("GET", request, true);
+        xhttp.send();
+    }
 
     function refreshData()    {
         var xhttp = new XMLHttpRequest();
@@ -320,8 +391,6 @@
         eh = off_time.getHours(); 
         em = off_time.getMinutes();
         es = off_time.getSeconds();
-
-        document.getElementById("DEBUG_VALUE").innerText = default_seconds;
 
         start_pos = getHourPosition(bh, bm, bs);
         end_pos   = getHourPosition(eh, em, es);
