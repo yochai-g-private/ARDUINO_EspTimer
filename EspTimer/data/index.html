@@ -13,29 +13,34 @@
 <div style = "text-align:center;">
     <canvas id ="clk" width="300" height="300" style="position:relative; margin:auto">
     </canvas><br>
-    <a id="TEMPERATURE"><strong>%TEMPERATURE%</strong></a><br>
-    <b id="SUN"></b>
+    <a id="TEMPERATURE" style="color:rgb(0, 26, 255); font-size:16px;"><strong>%TEMPERATURE%</strong></a><br>
+    <!--img src="/sun.gif" alt="sun" width="40" height="40"-->
+    <b id="SUN" style="color:rgb(185, 54, 21); font-size:16px;">????????????</b>
 </div>
 <br/><br/>
 <form>
     <label class="Large" for="START_AT" id="START_AT_L" >Start at:</label>
-    <input class="Large" type="time" id="START_AT" >
+    <input class="Large" type="time" id="START_AT" onchange="OnRangeChanged()">
 </form>
 
 <form>
     <label class="Large" for="STOP_AT"  id="STOP_AT_L" >End at :</label>
-    <input class="Large" type="time" id="STOP_AT" height="30">
+    <input class="Large" type="time" id="STOP_AT" height="30" onchange="OnRangeChanged()">
 </form>
   
 <div style = "text-align:center;">
     <a id="START">  <button id="START_B" class="button button_GREEN" style="margin:10px;" onclick="OnSTART()" hidden>START</button></a>
     <a id="STOP">   <button id="STOP_B"  class="button button_RED"   style="margin:10px;" onclick="OnSTOP()"  hidden>STOP</button></a><br>
-    <a id="DEBUG_VALUE"></a>
-    <P id="ERROR" style="color:red; font-size:20px;"><strong></strong></p>
+    <a id="DEBUG_VALUE"></a><br>
+    <b id="ERROR" style="color:red; font-size:20px;"></b>
 
 </div>
 
 <script>
+    //=================================
+    // VARIABLES
+    //=================================
+
     var clk;
     var ctx;
     var radius;
@@ -46,50 +51,8 @@
     var update_start_end = true;
     var sunRise;
     var sunSet;
-
-    function send_post(url) {
-        var xhttp = new XMLHttpRequest();
-        xhttp.open("POST", url, true);
-        xhttp.send();
-        refreshData();
-    }
-
-    function trace(msg) {
-        alert(msg);
-    }
-
-    function d2s(d) {
-        return Math.trunc(d.getTime() / 1000);
-    }
-
-    function s2d(s) {
-        return new Date(s * 1000);
-    }
-
-    Date.prototype.stdTimezoneOffset = function() {
-        var jan = new Date(this.getFullYear(), 0, 1);
-        var jul = new Date(this.getFullYear(), 6, 1);
-        return Math.max(jan.getTimezoneOffset(), jul.getTimezoneOffset());
-    }
-
-    Date.prototype.dst = function() {
-        return this.getTimezoneOffset() < this.stdTimezoneOffset();
-    }
-
-    function offsetSeconds(d)   {
-        return d.getTimezoneOffset() * 60;
-    }
-
-    function FixTime(d)  {
-        return d2s(d) - offsetSeconds(d);
-    }
-
-    function JavaTime(s)  {
-        d = new Date();
-        s += offsetSeconds(d);
-
-        return s2d(s);
-    }
+    var night_only = false;
+    var dst;
 
     var seconds_counter = 0;
     var force_refresh = false;
@@ -97,40 +60,105 @@
     var on_time = new Date();
     var off_time = new Date();
 
-    var default_seconds;
-
     var start_seconds = 0;
     var end_seconds = 0;
     var default_seconds = 0;
 
+    var connected;
+
+    var cleanErrorAt = null;
+
+    var start_time = new Date();
+    var end_time   = new Date();
+
+    //=================================
+    // EVENTS
+    //=================================
+
     function OnLoad() {
         document.getElementById("START_AT_L").style.display = "none";
         document.getElementById("START_AT").style.display = "none";
-        //document.getElementById("START_B").style.display = "none";
-
         document.getElementById("STOP_AT_L").style.display = "none";
         document.getElementById("STOP_AT").style.display = "none";
-        //document.getElementById("STOP_B").style.display = "none";
 
-        clk = document.getElementById("clk");
-        ctx = clk.getContext("2d");
-
-        cx = clk.width / 2;
-        cy = clk.height / 2;
-        radius = cy - 10;
-
-        ctx.translate(cx, cy);
-
-        radius = radius * 0.90;
-
+        initializeDrawing();
         getSun();
         refreshNow();
 
         setInterval(refresh, 1000);
     }
 
+    function getRange(today) {
+        start_time  = new Date(today.toDateString() + ' ' + document.getElementById("START_AT").value);
+        end_time    = new Date(today.toDateString() + ' ' + document.getElementById("STOP_AT").value);
+
+        if(start_time < today)   {
+            if(d2s(today) - d2s(start_time) >= 3600)    {
+                start_time = addDay(start_time);
+            } else {
+                start_time = today;
+            }
+        }
+
+        if(end_time < start_time)   {
+            end_time = addDay(end_time);
+        }
+    }
+
+    function OnSTART() {
+        today = new Date();
+
+        getRange(today);
+
+        on_seconds  = d2s(start_time) - d2s(today);
+        off_seconds = d2s(end_time)   - d2s(today);
+
+        max_hours = 15;
+
+        if(on_seconds >= off_seconds ||
+           off_seconds - on_seconds > max_hours * 3600)   {
+            if(started)
+                alert("'End at' time limited to " + max_hours + " hours!");
+            else
+                alert("'Start at' time must be before 'End at' time!");
+            return;
+        }
+
+        request = "/h/start?on=" + on_seconds + "&off=" + off_seconds;
+
+        send_post(request);
+
+        refreshNow();              
+    }
+
+    function OnSTOP() {
+        send_post("/h/stop");
+        refreshNow();              
+    }
+
+    function OnRangeChanged()
+    {
+        //alert("Changed");
+        getRange(new Date());
+
+        on_time  = start_time;
+        off_time = end_time;
+
+        //alert("ON: " + on_time + "\n" +
+        //      "OFF:" + off_time);
+
+        updateRange(false);
+    }
+
+    //=================================
+    // ACTIONS
+    //=================================
+
     function refresh()
     {
+        if(cleanErrorAt != null && cleanErrorAt < new Date())
+            cleanError();
+
         refreshData();
         drawClock();
     }
@@ -142,35 +170,57 @@
         force_refresh = false;
     }
 
-    function roundSecondsToMinutes(n)
-    {
-        return n - (n % 60);
-    }   
-
-    function roundToMinutes(t)
-    {
-        temp = new Date(t);
-        temp.setSeconds(0);
-        return temp;
-    }   
-
-    //var on_input = null;
-    //var off_input = null;
-
+    
     function setSun(text)  {
         //document.getElementById("DEBUG_VALUE").innerText = text;
 
         arr = text.split(";");
-        sunRiseText = arr[0];
-        sunSetText  = arr[1];
-        sunRiseSeconds = parseInt(arr[2]);
-        sunSetSeconds  = parseInt(arr[3]);
+        night_only  = arr[0] == "true";
+        sunRiseText = arr[1];
+        sunSetText  = arr[2];
+        sunRiseSeconds = parseInt(arr[3]);
+        sunSetSeconds  = parseInt(arr[4]);
 
         sunRise = JavaTime(sunRiseSeconds);
         sunSet  = JavaTime(sunSetSeconds);
 
+        if(dst)
+        {
+            sunRise = addHour(sunRise);
+            sunSet  = addHour(sunSet);
+        }
+
         var sun = sunRiseText + " - " + sunSetText;
         document.getElementById("SUN").innerText = sun;
+
+        //updateRange(true);
+    }
+
+    function getSun()
+    {
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function () {
+            if (this.readyState == 4 && this.status == 200) {
+                setSun(this.responseText);
+                connected = true;
+            } else {
+                if(connected)
+                {
+                    //alert("Connection lost");
+                    connected = false;
+                }
+            }
+        }
+
+        now = new Date();
+
+        fix_seconds = FixTime(now);
+        dst         = now.dst();
+
+        request = "/h/now?now=" + fix_seconds + "&dst=" + dst;
+
+        xhttp.open("GET", request, true);
+        xhttp.send();
     }
 
     function setData(text)  {
@@ -193,16 +243,16 @@
         {
             started = false;
 
-            on_time  = s2d(now_seconds);
-            off_time = s2d(now_seconds + default_seconds);
+            on_time  = roundToMinutes(s2d(now_seconds));
+            off_time = roundToMinutes(s2d(now_seconds + default_seconds));
         }
         else
         {
             if (start_seconds > 0)  started = false;
             else                    started = true;
 
-            on_time  = s2d(now_seconds + start_seconds);
-            off_time = s2d(now_seconds + end_seconds);
+            on_time  = roundToMinutes(s2d(now_seconds + start_seconds));
+            off_time = roundToMinutes(s2d(now_seconds + end_seconds));
         }
 
         document.getElementById("STOP_AT_L").style.display = "inline";
@@ -244,99 +294,60 @@
 
         if(update_start_end)
         {
-            document.getElementById("START_AT").value = roundToMinutes(on_time).toLocaleTimeString('en-GB');
-            document.getElementById("STOP_AT").value  = roundToMinutes(off_time).toLocaleTimeString('en-GB');
-
+            updateRange(true);
             update_start_end = false;
         }
     }
 
-    function addDay(t)
-    {
-        retval = new Date(t);
-        retval.setTime(retval.getTime() + 86400 * 1000);
-        return retval;
+    function updateRange(corrent_silently)  {
+        correctRange(corrent_silently);
+        
+        document.getElementById("START_AT").value = on_time.toLocaleTimeString('en-GB');
+        document.getElementById("STOP_AT").value  = off_time.toLocaleTimeString('en-GB');
     }
 
-    function OnSTART() {
-        const today = new Date();
-        start_time  = new Date(today.toDateString() + ' ' + document.getElementById("START_AT").value);
-        end_time    = new Date(today.toDateString() + ' ' + document.getElementById("STOP_AT").value);
-
-        if(start_time < today)   {
-            if(d2s(today) - d2s(start_time) >= 3600)    {
-                start_time = addDay(start_time);
-            } else {
-                start_time = today;
-            }
-        }
-
-        if(end_time < start_time)   {
-            end_time = addDay(end_time);
-        }
-
-        on_seconds  = d2s(start_time) - d2s(today);
-        off_seconds = d2s(end_time)   - d2s(today);
-
-        max_hours = 15;
-
-        if(on_seconds >= off_seconds ||
-           off_seconds - on_seconds > max_hours * 3600)   {
-            if(started)
-                alert("'End at' time limited to " + max_hours + " hours!");
-            else
-                alert("'Start at' time must be before 'End at' time!");
+    function correctRange(silently)  {
+        if(!night_only)
             return;
+
+        error = "";
+
+        if(!on_time.isNight())
+        {
+            error = "Invalid 'Start at'";
+            on_time = sunSet; 
         }
 
-        request = "/h/start?on=" + on_seconds + "&off=" + off_seconds;
-
-        send_post(request);
-/*
-        alert(start_time + "\n" + 
-              end_time + "\n" +
-              d2s(start_time) + "\n" +
-              d2s(end_time) + "\n" +
-              on_seconds + "\n" +
-              off_seconds + "\n" +
-              request);
-*/
-        refreshNow();              
-    }
-
-    function OnSTOP() {
-        send_post("/h/stop");
-        refreshNow();              
-    }
-
-    var connected;
-
-    function getSun()
-    {
-        var xhttp = new XMLHttpRequest();
-        xhttp.onreadystatechange = function () {
-            if (this.readyState == 4 && this.status == 200) {
-                setSun(this.responseText);
-                connected = true;
-            } else {
-                if(connected)
-                {
-                    //alert("Connection lost");
-                    connected = false;
-                }
-            }
+        if(!off_time.isNight())
+        {
+            //alert("OFF: " + off_time);
+            if(error == "")     error = "Invalid 'End at'";
+            else                error = error + " and 'End at'";
+            off_time = s2d(d2s(sunSet) + default_seconds); 
+        }
+        else
+        {
+            if(error != "" && (d2s(new Date()) - d2s(off_time)) < default_seconds)
+                off_time = s2d(d2s(sunSet) + default_seconds); 
         }
 
-        now = new Date();
-
-        fix_seconds = FixTime(now);
-        dst         = now.dst();
-
-        request = "/h/now?now=" + fix_seconds + "&dst=" + dst;
-
-        xhttp.open("GET", request, true);
-        xhttp.send();
+        if(error != "" && !silently)    {
+            showError(error);
+        }
     }
+
+    function showError(error)    {
+        //alert("ERROR: " + error);
+
+        document.getElementById("ERROR").innerText = error;
+
+        if(error != "")
+            cleanErrorAt = s2d(d2s(new Date()) + 10); 
+        else
+            cleanErrorAt = null;
+    }
+
+    function cleanError()   { showError(""); }
 
     function refreshData()    {
         var xhttp = new XMLHttpRequest();
@@ -361,6 +372,23 @@
         }
 
         seconds_counter += 1;
+    }
+
+    //=================================
+    // DRAWING
+    //=================================
+
+    function initializeDrawing()    {
+        clk = document.getElementById("clk");
+        ctx = clk.getContext("2d");
+
+        cx = clk.width / 2;
+        cy = clk.height / 2;
+        radius = cy - 10;
+
+        ctx.translate(cx, cy);
+
+        radius = radius * 0.90;
     }
 
     function drawClock() {
@@ -491,6 +519,99 @@
         ctx.lineTo(0, -length);
         ctx.stroke();
         ctx.rotate(-pos);
+    }
+
+    //=================================
+    // UTILS
+    //=================================
+
+    function send_post(url) {
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("POST", url, true);
+        xhttp.send();
+        refreshData();
+    }
+
+    function trace(msg) {
+        alert(msg);
+    }
+
+    function d2s(d) {
+        return Math.trunc(d.getTime() / 1000);
+    }
+
+    function s2d(s) {
+        return new Date(s * 1000);
+    }
+
+    Date.prototype.stdTimezoneOffset = function() {
+        var jan = new Date(this.getFullYear(), 0, 1);
+        var jul = new Date(this.getFullYear(), 6, 1);
+        return Math.max(jan.getTimezoneOffset(), jul.getTimezoneOffset());
+    }
+
+    Date.prototype.dst = function() {
+        return this.getTimezoneOffset() < this.stdTimezoneOffset();
+    }
+
+    function offsetSeconds(d)   {
+        return d.getTimezoneOffset() * 60;
+    }
+
+    function FixTime(d)  {
+        return d2s(d) - offsetSeconds(d);
+    }
+
+    function JavaTime(s)  {
+        d = new Date();
+        s += offsetSeconds(d);
+
+        return s2d(s);
+    }
+
+    function roundSecondsToMinutes(n)
+    {
+        return n - (n % 60);
+    }   
+
+    function roundToMinutes(t)
+    {
+        temp = new Date(t);
+        temp.setSeconds(0);
+        return temp;
+    }   
+
+    function addSeconds(t, s)
+    {
+        retval = new Date(t);
+        retval.setTime(retval.getTime() + s * 1000);
+        return retval;
+    }
+
+    function addDay(t)
+    {
+        return addSeconds(t, 86400);
+    }
+
+    function addHour(t)
+    {
+        return addSeconds(t, 3600);
+    }
+
+    Date.prototype.Days = function() {
+        return Math.trunc(this.getTime() / (86400 * 1000));
+    } 
+    
+    Date.prototype.isNight = function() {
+        return is_night(this, sunRise, sunSet);
+    }
+
+    function is_night(d, sr, ss)
+    {
+        if(d.Days() > sr.Days())
+            return is_night(d, addDay(sr), addDay(ss));
+
+        return d < sr || d >= ss;
     }
 
 </script>

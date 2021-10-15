@@ -11,7 +11,7 @@ AsyncWebServer server(80);
 
 static String processor(const String& var) {
     if (var == "TEMPERATURE")
-        return String(GetTemperature(), 1) + "C";
+        return String(GetTemperature(), 1) + "°";
 
     if (var == "TITLE")
         return settings.instance_title;
@@ -71,14 +71,10 @@ namespace NYG
 void InitializeWebServices()
 {
     // Initialize SPIFFS
-#define _USE_SPIFFS 1
-
-#if _USE_SPIFFS
     if (!LittleFS.begin()) {
         Serial.println("An Error has occurred while mounting SPIFFS");
         return;
     }
-#endif //_USE_SPIFFS
 
     File file = LittleFS.open("index.html", "r");
     if(!file)
@@ -132,7 +128,7 @@ void InitializeWebServices()
                                         Serial.println("0");
                                     }
                                 }
-#endif     
+#endif      //0
 	static String last_modified_s = LongTimeText(DstTime::GetBuildTime()).buffer;
     const char* last_modified = last_modified_s.c_str();
 
@@ -140,7 +136,6 @@ void InitializeWebServices()
 
     //AsyncStaticWebHandler* handler;
 
-#if _USE_SPIFFS
     // ARDUINO IDE EspTimer.spiffs.bin FILE LOCATION:
     // C:\Users\yochai.glauber\AppData\Local\Temp\arduino_build_950057\EspTimer.spiffs.bin
     // C:\Users\yochai.glauber\Documents\Arduino\VscProjects\EspTimer\EspTimer\.pio\build\d1_mini\firmware.bin
@@ -149,13 +144,12 @@ void InitializeWebServices()
         LOGGER << request->url() << NL;
         //SendInfo("INDEX.HTML requested", *request);
         request->send(LittleFS, "/index.html", String(), false, processor);
-        });
-
+    });
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     //server.serveStatic("/style.css",    SPIFFS,     "/style.css")   .setLastModified(last_modified);
     //server.serveStatic("/Clock.gif",    SPIFFS,     "/Clock.gif")   .setLastModified(last_modified);
     //server.serveStatic("/icon.gif",     SPIFFS,     "/icon.gif")    .setLastModified(last_modified);
-#endif //_USE_SPIFFS
-
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     server.on("/h/data", HTTP_GET, [](AsyncWebServerRequest *request) {
         LOGGER << request->url() << NL;
         char response[256];
@@ -166,8 +160,8 @@ void InitializeWebServices()
                 (long)(settings.default_on_minutes * SECONDS_PER_MINUTE));
 
         SendText(response, *request);
-        });
-
+    });
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     server.on("/h/start", HTTP_POST, [](AsyncWebServerRequest *request) {
         LOGGER << request->url() << NL;
 
@@ -188,13 +182,14 @@ void InitializeWebServices()
             else    SetRelayStatus(true);
             
             SetRelayOffTimerSeconds(off);
-        }});
-
+        }
+    });
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     server.on("/h/stop", HTTP_POST, [](AsyncWebServerRequest *request) {
         LOGGER << request->url() << NL;
         cancel();
-        });
-
+    });
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     server.on("/h/now", HTTP_GET, [](AsyncWebServerRequest *request) {
         LOGGER << request->url() << NL;
         uint32_t now;
@@ -225,7 +220,8 @@ void InitializeWebServices()
                 rtf.time[5] = 0;
                 stf.time[5] = 0;
 
-                sprintf(response, "%s;%s;%lu;%lu",
+                sprintf(response, "%s;%s;%s;%lu;%lu",
+                        BOOL::Get(settings.night_only, WC_LOWERCASE),
                         rtf.time,
                         stf.time,
                         riseTime.GetSeconds(),
@@ -237,15 +233,13 @@ void InitializeWebServices()
             SendText(response, *request);
 
         }
-        });
-
-    settings.InitializeWebServices(server);
-
+    });
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     server.on("/m/status", HTTP_GET, [](AsyncWebServerRequest *request) {
         LOGGER << request->url() << NL;
         SendInfo(get_relay_status().c_str(), *request);
-        });
-
+    });
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     server.on("/m/start", HTTP_GET, [](AsyncWebServerRequest *request) {
         LOGGER << request->url() << NL;
 
@@ -265,9 +259,6 @@ void InitializeWebServices()
 
         CancelRelayOnTimer(); 
 
-//LOGGER << "on_minutes=" << on_minutes << ", off_minutes=" << off_minutes << NL;
-//LOGGER << "on_minutes_used=" << on_minutes_used << ", off_minutes_used=" << off_minutes_used << NL;
-
         if(on_minutes_used && on_minutes)       SetRelayOnTimer(on_minutes);
         else                                    SetRelayStatus(true);
 
@@ -275,8 +266,8 @@ void InitializeWebServices()
         else                                    CancelRelayOffTimer();
 
         SendInfo(get_relay_status().c_str(), *request);
-        });
-
+    });
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     server.on("/m/stop", HTTP_GET, [](AsyncWebServerRequest *request) {
         LOGGER << request->url() << NL;
 
@@ -290,37 +281,39 @@ void InitializeWebServices()
                                                 SetRelayStatus(false);
 
         SendInfo(get_relay_status().c_str(), *request);
-        });
-
+    });
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     server.on("/m/cancel", HTTP_GET, [](AsyncWebServerRequest *request) {
         LOGGER << request->url() << NL;
         cancel();
 
         SendInfo(get_relay_status().c_str(), *request);
-        });
-
+    });
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     server.on("/m/temperature", HTTP_GET, [](AsyncWebServerRequest *request) {
         LOGGER << request->url() << NL;
-        SendInfo((String(GetTemperature(), 1) + "C").c_str(), *request);
-        });
-
+        SendInfo((String(GetTemperature(), 1) + "°").c_str(), *request);
+    });
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     server.on("/m/version", HTTP_GET, [](AsyncWebServerRequest *request) {
         LOGGER << request->url() << NL;
         SendInfo(String((int)VERSION).c_str(), *request);
-        });
-
+    });
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     server.on("/m/build", HTTP_GET, [](AsyncWebServerRequest *request) {
         LOGGER << request->url() << NL;
         SendInfo(DstTime::GetBuildTime().ToText(), *request);
-        });
-
+    });
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     server.on("/m/restart", HTTP_GET, [](AsyncWebServerRequest *request) {
         LOGGER << request->url() << NL;
         Html::h1 root("Restarting in 10 seconds...");
         SendElement(root, *request);
         ScheduleRestart(10);
-        });
-
+    });
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    settings.InitializeWebServices(server);
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     server.onNotFound([](AsyncWebServerRequest *request) {
         if (request->url() == "/favicon.ico")    return;
 
@@ -333,8 +326,8 @@ void InitializeWebServices()
         LOGGER << "URL NOT FOUND: " << request->url() << NL;
         SendError("Page not found", *request, 400);
         //request->send_P(400, "text/plain", );
-        });
-
+    });
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     // Start server
 
     AsyncElegantOTA.begin(&server);    // Start ElegantOTA
