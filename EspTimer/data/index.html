@@ -15,7 +15,7 @@
     </canvas><br>
     <a id="TEMPERATURE" style="color:rgb(0, 26, 255); font-size:16px;"><strong>%TEMPERATURE%</strong></a><br>
     <!--img src="/sun.gif" alt="sun" width="40" height="40"-->
-    <b id="SUN" style="color:rgb(185, 54, 21); font-size:16px;">????????????</b>
+    <b id="SUN" style="color:rgb(185, 54, 21); font-size:16px;"></b>
 </div>
 <br/><br/>
 <form>
@@ -41,12 +41,22 @@
     // VARIABLES
     //=================================
 
-    var clk;
-    var ctx;
-    var radius;
-    var t;
-    var cx;
-    var cy;
+    var g_dst;
+    var g_night_only;
+    var g_sunRise;
+    var g_sunSet;
+
+    var g_refresh_counter = 0;
+    var g_cleanErrorAt    = null;
+
+    var g_default_seconds = 0;
+
+    var g_on_time  = new Date();
+    var g_off_time = new Date();
+    var g_started  = false;
+    var g_pending = false;
+/*
+/*
     var started;
     var update_start_end = true;
     var sunRise;
@@ -70,39 +80,14 @@
 
     var start_time = new Date();
     var end_time   = new Date();
-
+*/
     //=================================
     // EVENTS
     //=================================
 
     function OnLoad() {
-        document.getElementById("START_AT_L").style.display = "none";
-        document.getElementById("START_AT").style.display = "none";
-        document.getElementById("STOP_AT_L").style.display = "none";
-        document.getElementById("STOP_AT").style.display = "none";
-
         initializeDrawing();
         getSun();
-        refreshNow();
-
-        setInterval(refresh, 1000);
-    }
-
-    function getRange(today) {
-        start_time  = new Date(today.toDateString() + ' ' + document.getElementById("START_AT").value);
-        end_time    = new Date(today.toDateString() + ' ' + document.getElementById("STOP_AT").value);
-
-        if(start_time < today)   {
-            if(d2s(today) - d2s(start_time) >= 3600)    {
-                start_time = addDay(start_time);
-            } else {
-                start_time = today;
-            }
-        }
-
-        if(end_time < start_time)   {
-            end_time = addDay(end_time);
-        }
     }
 
     function OnSTART() {
@@ -138,7 +123,7 @@
 
     function OnRangeChanged()
     {
-        //alert("Changed");
+        alert("Changed");
         getRange(new Date());
 
         on_time  = start_time;
@@ -154,109 +139,98 @@
     // ACTIONS
     //=================================
 
+    function getSun()
+    {
+        now   = new Date();
+        g_dst = now.dst();
+
+
+        fix_seconds = FixTime(now);
+        request = "/h/now?now=" + fix_seconds + "&dst=" + g_dst;
+
+        send_get(request, setSun);
+    }
+
+    function setSun(text)  {
+        //document.getElementById("DEBUG_VALUE").innerText = text;
+
+        arr = text.split(";");
+        g_night_only  = arr[0] == "true";
+        sunRiseText = arr[1];
+        sunSetText  = arr[2];
+        sunRiseSeconds = parseInt(arr[3]);
+        sunSetSeconds  = parseInt(arr[4]);
+
+        g_sunRise = JavaTime(sunRiseSeconds);
+        g_sunSet  = JavaTime(sunSetSeconds);
+
+        if(g_dst)
+        {
+            g_sunRise = addHour(g_sunRise);
+            g_sunSet  = addHour(g_sunSet);
+        }
+
+        var sun = sunRiseText + " - " + sunSetText;
+        document.getElementById("SUN").innerText = sun;
+
+        refresh();
+
+        setInterval(refresh, 1000);
+        //updateRange(true);
+    }
+
     function refresh()
     {
-        if(cleanErrorAt != null && cleanErrorAt < new Date())
+        if(g_cleanErrorAt != null && g_cleanErrorAt < new Date())
             cleanError();
 
         refreshData();
         drawClock();
     }
 
-    function refreshNow()
-    {
-        force_refresh = true;
-        refresh();
-        force_refresh = false;
-    }
-
-    
-    function setSun(text)  {
-        //document.getElementById("DEBUG_VALUE").innerText = text;
-
-        arr = text.split(";");
-        night_only  = arr[0] == "true";
-        sunRiseText = arr[1];
-        sunSetText  = arr[2];
-        sunRiseSeconds = parseInt(arr[3]);
-        sunSetSeconds  = parseInt(arr[4]);
-
-        sunRise = JavaTime(sunRiseSeconds);
-        sunSet  = JavaTime(sunSetSeconds);
-
-        if(dst)
-        {
-            sunRise = addHour(sunRise);
-            sunSet  = addHour(sunSet);
+    function refreshData()    {
+        if(new Date().getSeconds() % 5 == 0 || g_refresh_counter == 0) {
+            send_get("/h/data", setData);
+            g_refresh_counter += 1;
         }
-
-        var sun = sunRiseText + " - " + sunSetText;
-        document.getElementById("SUN").innerText = sun;
-
-        //updateRange(true);
-    }
-
-    function getSun()
-    {
-        var xhttp = new XMLHttpRequest();
-        xhttp.onreadystatechange = function () {
-            if (this.readyState == 4 && this.status == 200) {
-                setSun(this.responseText);
-                connected = true;
-            } else {
-                if(connected)
-                {
-                    //alert("Connection lost");
-                    connected = false;
-                }
-            }
-        }
-
-        now = new Date();
-
-        fix_seconds = FixTime(now);
-        dst         = now.dst();
-
-        request = "/h/now?now=" + fix_seconds + "&dst=" + dst;
-
-        xhttp.open("GET", request, true);
-        xhttp.send();
     }
 
     function setData(text)  {
         arr = text.split(";");
+
         start_seconds = parseInt(arr[0]);
         end_seconds = parseInt(arr[1]);
-        default_seconds = parseInt(arr[2]);
+        g_default_seconds = parseInt(arr[2]);
+
+        prev_on_time  = g_on_time;
+        prev_off_time = g_off_time;
+        prev_started  = g_started;
+
+        g_on_time  = new Date();
+        g_off_time = new Date();
 
         now_seconds = d2s(new Date());
         
-        prev_on  = d2s(on_time);
-        prev_off = d2s(off_time);
-
-        on_time = new Date();
-        off_time = new Date();
-
-        prev_started = started;
+        g_pending = false;
 
         if(!end_seconds)
         {
-            started = false;
+            g_started = false;
 
-            on_time  = roundToMinutes(s2d(now_seconds));
-            off_time = roundToMinutes(s2d(now_seconds + default_seconds));
+            g_on_time  = roundToMinutes(s2d(now_seconds));
+            g_off_time = roundToMinutes(s2d(now_seconds + g_default_seconds));
         }
         else
         {
-            if (start_seconds > 0)  started = false;
-            else                    started = true;
+            if (start_seconds > 0)  { g_started = false; g_pending = true; }
+            else                    { g_started = true; }
 
-            on_time  = roundToMinutes(s2d(now_seconds + start_seconds));
-            off_time = roundToMinutes(s2d(now_seconds + end_seconds));
+            g_on_time  = roundToMinutes(s2d(now_seconds + start_seconds));
+            g_off_time = roundToMinutes(s2d(now_seconds + end_seconds));
         }
 
-        document.getElementById("STOP_AT_L").style.display = "inline";
-        document.getElementById("STOP_AT").style.display = "inline";
+        //document.getElementById("STOP_AT_L").style.display = "inline";
+        //document.getElementById("STOP_AT").style.display = "inline";
 
         start_b = document.getElementById("START_B");
         stop_b  = document.getElementById("STOP_B");
@@ -264,7 +238,7 @@
         if(end_seconds) {
             start_b.innerText = "UPDATE";
 
-            if(started)
+            if(g_started)
                 stop_b.innerText = "STOP";
             else
                 stop_b.innerText = "CANCEL";
@@ -273,7 +247,7 @@
             start_b.innerText = "START";
         }
 
-        if (started)
+        if (g_started)
         {
             stop_b.style.display = "inline";
 
@@ -289,24 +263,44 @@
             document.getElementById("START_AT").style.display = "inline";
         }
 
-        if(prev_started && !started)
+        update_start_end = false;
+
+        if(prev_started  != !g_started  || 
+           prev_on_time  != g_on_time   ||
+           prev_off_time != g_off_time)
             update_start_end = true;
 
         if(update_start_end)
-        {
             updateRange(true);
-            update_start_end = false;
+    }
+
+    function getRange(today) {
+        start_time  = new Date(today.toDateString() + ' ' + document.getElementById("START_AT").value);
+        end_time    = new Date(today.toDateString() + ' ' + document.getElementById("STOP_AT").value);
+
+        if(start_time < today)   {
+            if(d2s(today) - d2s(start_time) >= 3600)    {
+                start_time = addDay(start_time);
+            } else {
+                start_time = today;
+            }
+        }
+
+        if(end_time < start_time)   {
+            end_time = addDay(end_time);
         }
     }
 
     function updateRange(corrent_silently)  {
         correctRange(corrent_silently);
         
-        document.getElementById("START_AT").value = on_time.toLocaleTimeString('en-GB');
-        document.getElementById("STOP_AT").value  = off_time.toLocaleTimeString('en-GB');
+        document.getElementById("START_AT").value = g_on_time.toLocaleTimeString('en-GB');
+        document.getElementById("STOP_AT").value  = g_off_time.toLocaleTimeString('en-GB');
     }
 
     function correctRange(silently)  {
+
+        return; // TODO
         if(!night_only)
             return;
 
@@ -315,7 +309,7 @@
         if(!on_time.isNight())
         {
             error = "Invalid 'Start at'";
-            on_time = sunSet; 
+            on_time = g_sunSet; 
         }
 
         if(!off_time.isNight())
@@ -323,12 +317,12 @@
             //alert("OFF: " + off_time);
             if(error == "")     error = "Invalid 'End at'";
             else                error = error + " and 'End at'";
-            off_time = s2d(d2s(sunSet) + default_seconds); 
+            off_time = s2d(d2s(g_sunSet) + g_default_seconds); 
         }
         else
         {
-            if(error != "" && (d2s(new Date()) - d2s(off_time)) < default_seconds)
-                off_time = s2d(d2s(sunSet) + default_seconds); 
+            if(error != "" && (d2s(new Date()) - d2s(off_time)) < g_default_seconds)
+                off_time = s2d(d2s(g_sunSet) + g_default_seconds); 
         }
 
         if(error != "" && !silently)    {
@@ -349,34 +343,121 @@
 
     function cleanError()   { showError(""); }
 
-    function refreshData()    {
+    //=================================
+    // UTILS
+    //=================================
+
+    function send_get(request, on_response_func)
+    {
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange = function () {
             if (this.readyState == 4 && this.status == 200) {
-                setData(this.responseText);
-                connected = true;
-            } else {
-                if(connected)
-                {
-                    //alert("Connection lost");
-                    connected = false;
-                }
+                on_response_func(this.responseText);
             }
-        }
+        };
 
-        now = new Date();
-        
-        if(force_refresh || seconds_counter == 0 || now.getSeconds() % 5 == 0) {
-            xhttp.open("GET", "/h/data", true);
-            xhttp.send();
-        }
+        xhttp.open("GET", request, true);
+        xhttp.send();
+    }
 
-        seconds_counter += 1;
+    function send_post(url) {
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("POST", url, true);
+        xhttp.send();
+    }
+
+    function trace(msg) {
+        alert(msg);
+    }
+
+    function d2s(d) {
+        return Math.trunc(d.getTime() / 1000);
+    }
+
+    function s2d(s) {
+        return new Date(s * 1000);
+    }
+
+    Date.prototype.stdTimezoneOffset = function() {
+        var jan = new Date(this.getFullYear(), 0, 1);
+        var jul = new Date(this.getFullYear(), 6, 1);
+        return Math.max(jan.getTimezoneOffset(), jul.getTimezoneOffset());
+    }
+
+    Date.prototype.dst = function() {
+        return this.getTimezoneOffset() < this.stdTimezoneOffset();
+    }
+
+    function offsetSeconds(d)   {
+        return d.getTimezoneOffset() * 60;
+    }
+
+    function FixTime(d)  {
+        return d2s(d) - offsetSeconds(d);
+    }
+
+    function JavaTime(s)  {
+        d = new Date();
+        s += offsetSeconds(d);
+
+        return s2d(s);
+    }
+
+    function roundSecondsToMinutes(n)
+    {
+        return n - (n % 60);
+    }   
+
+    function roundToMinutes(t)
+    {
+        temp = new Date(t);
+        temp.setSeconds(0);
+        return temp;
+    }   
+
+    function addSeconds(t, s)
+    {
+        retval = new Date(t);
+        retval.setTime(retval.getTime() + s * 1000);
+        return retval;
+    }
+
+    function addDay(t)
+    {
+        return addSeconds(t, 86400);
+    }
+
+    function addHour(t)
+    {
+        return addSeconds(t, 3600);
+    }
+
+    Date.prototype.Days = function() {
+        return Math.trunc(this.getTime() / (86400 * 1000));
+    } 
+    
+    Date.prototype.isNight = function() {
+        return is_night(this, g_sunRise, g_sunSet);
+    }
+
+    function is_night(d, sr, ss)
+    {
+        if(d.Days() > sr.Days())
+            return is_night(d, addDay(sr), addDay(ss));
+
+        return d < sr || d >= ss;
     }
 
     //=================================
     // DRAWING
     //=================================
+
+    var clk;
+    var ctx;
+    var radius;
+    var t;
+    var cx;
+    var cy;
 
     function initializeDrawing()    {
         clk = document.getElementById("clk");
@@ -406,19 +487,16 @@
     }
 
     function drawRedArk()    {
-        if(on_time == null)
-            return;
-        
-        if(!end_seconds)
+        if(!g_started && !g_pending)
             return;
 
-        bh = on_time.getHours(); 
-        bm = on_time.getMinutes();
-        bs = on_time.getSeconds();
+        bh = g_on_time.getHours(); 
+        bm = g_on_time.getMinutes();
+        bs = g_on_time.getSeconds();
 
-        eh = off_time.getHours(); 
-        em = off_time.getMinutes();
-        es = off_time.getSeconds();
+        eh = g_off_time.getHours(); 
+        em = g_off_time.getMinutes();
+        es = g_off_time.getSeconds();
 
         start_pos = getHourPosition(bh, bm, bs);
         end_pos   = getHourPosition(eh, em, es);
@@ -433,8 +511,8 @@
         ctx.lineWidth=30;
         hold = ctx.fillStyle;
         
-        if(started) ctx.fillStyle="red";
-        else        ctx.fillStyle="orange";
+        if(g_started) ctx.fillStyle="red";
+        else          ctx.fillStyle="orange";
 
         ctx.fill();
         ctx.fillStyle = hold;
@@ -519,99 +597,6 @@
         ctx.lineTo(0, -length);
         ctx.stroke();
         ctx.rotate(-pos);
-    }
-
-    //=================================
-    // UTILS
-    //=================================
-
-    function send_post(url) {
-        var xhttp = new XMLHttpRequest();
-        xhttp.open("POST", url, true);
-        xhttp.send();
-        refreshData();
-    }
-
-    function trace(msg) {
-        alert(msg);
-    }
-
-    function d2s(d) {
-        return Math.trunc(d.getTime() / 1000);
-    }
-
-    function s2d(s) {
-        return new Date(s * 1000);
-    }
-
-    Date.prototype.stdTimezoneOffset = function() {
-        var jan = new Date(this.getFullYear(), 0, 1);
-        var jul = new Date(this.getFullYear(), 6, 1);
-        return Math.max(jan.getTimezoneOffset(), jul.getTimezoneOffset());
-    }
-
-    Date.prototype.dst = function() {
-        return this.getTimezoneOffset() < this.stdTimezoneOffset();
-    }
-
-    function offsetSeconds(d)   {
-        return d.getTimezoneOffset() * 60;
-    }
-
-    function FixTime(d)  {
-        return d2s(d) - offsetSeconds(d);
-    }
-
-    function JavaTime(s)  {
-        d = new Date();
-        s += offsetSeconds(d);
-
-        return s2d(s);
-    }
-
-    function roundSecondsToMinutes(n)
-    {
-        return n - (n % 60);
-    }   
-
-    function roundToMinutes(t)
-    {
-        temp = new Date(t);
-        temp.setSeconds(0);
-        return temp;
-    }   
-
-    function addSeconds(t, s)
-    {
-        retval = new Date(t);
-        retval.setTime(retval.getTime() + s * 1000);
-        return retval;
-    }
-
-    function addDay(t)
-    {
-        return addSeconds(t, 86400);
-    }
-
-    function addHour(t)
-    {
-        return addSeconds(t, 3600);
-    }
-
-    Date.prototype.Days = function() {
-        return Math.trunc(this.getTime() / (86400 * 1000));
-    } 
-    
-    Date.prototype.isNight = function() {
-        return is_night(this, sunRise, sunSet);
-    }
-
-    function is_night(d, sr, ss)
-    {
-        if(d.Days() > sr.Days())
-            return is_night(d, addDay(sr), addDay(ss));
-
-        return d < sr || d >= ss;
     }
 
 </script>
