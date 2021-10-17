@@ -33,6 +33,7 @@ call :Link_NYG              Observer
 call :Link_NYG              TimeEx
 call :Link_NYG              Location
 call :Link_NYG              Sun
+call :Link_NYG              Random
 rem call :Link_NYG              RTC
 rem call :Link_NYG              Location
 rem call :Link_NYG              Scheduler

@@ -49,6 +49,9 @@ void SetRelayStatus(bool on);
 long GetOnSeconds();
 long GetOffSeconds();
 
+unsigned long GetStartId();
+#define NOT_STARTED_ID  0
+
 void SetRelayOffTimerSeconds(uint32_t seconds);
 inline void SetRelayOffTimer(uint32_t minutes)             { SetRelayOffTimerSeconds(minutes * SECONDS_PER_MINUTE); }
 #define CancelRelayOffTimer()   SetRelayOffTimerSeconds(0)

@@ -11,6 +11,7 @@
 //#include "InternetTime.h"
 #include "MicroController.h"
 #include "Observer.h"
+#include "Random.h"
 
 #include "main.h"
 #include "Settings.h"
@@ -34,6 +35,9 @@ typedef DigitalOutputPin            Relay;
 
 static Relay                        st_relay(RELAY_PIN);
 static unsigned long                st_on_at;
+
+static unsigned long                st_start_id = NOT_STARTED_ID;
+
 void setup()
 {
     Logger::Initialize();
@@ -233,10 +237,28 @@ void SetRelayStatus(bool on)
     st_on_at = (on) ? millis() : 0;
 }
 //-----------------------------------------------------------
+unsigned long GetStartId()
+{
+    return st_start_id;
+}
+//-----------------------------------------------------------
 void SetRelayOffTimerSeconds(uint32_t seconds)
 {
-    if(seconds)     { st_relay_off_timer.StartOnce(seconds * 1000); LOGGER << "Relay OFF timer set for " << ConvertToHuman(seconds) << NL;  }
-    else            { st_relay_off_timer.Stop();                    LOGGER << "Relay OFF timer canceled" << NL;                             }
+    if(seconds)     
+    { 
+        do  {
+            st_start_id = (unsigned long) Random::Get();
+        }   while(st_start_id == NOT_STARTED_ID);
+
+        st_relay_off_timer.StartOnce(seconds * 1000); 
+        LOGGER << "Relay OFF timer set for " << ConvertToHuman(seconds) << NL;  
+    }
+    else            
+    { 
+        st_start_id = NOT_STARTED_ID;
+        st_relay_off_timer.Stop();                    
+        LOGGER << "Relay OFF timer canceled" << NL;
+    }
 }
 //-----------------------------------------------------------
 int32_t GetRelayOffSeconds()

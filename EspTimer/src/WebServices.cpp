@@ -150,46 +150,6 @@ void InitializeWebServices()
     //server.serveStatic("/Clock.gif",    SPIFFS,     "/Clock.gif")   .setLastModified(last_modified);
     //server.serveStatic("/icon.gif",     SPIFFS,     "/icon.gif")    .setLastModified(last_modified);
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    server.on("/h/data", HTTP_GET, [](AsyncWebServerRequest *request) {
-        LOGGER << request->url() << NL;
-        char response[256];
-
-        sprintf(response, "%ld;%ld;%ld",
-                GetOnSeconds(),
-                GetOffSeconds(),
-                (long)(settings.default_on_minutes * SECONDS_PER_MINUTE));
-
-        SendText(response, *request);
-    });
-    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    server.on("/h/start", HTTP_POST, [](AsyncWebServerRequest *request) {
-        LOGGER << request->url() << NL;
-
-        uint32_t on  = 0,
-                 off = 0;
-
-        bool on_used  = GetUnsignedLongParam(*request, "on",    on);    
-        bool off_used = GetUnsignedLongParam(*request, "off",   off);
-
-        LOGGER << "on=" << on << ", off=" << off << NL;
-
-        if(on_used && off_used)
-        {
-            CancelRelayOnTimer(); 
-            CancelRelayOffTimer(); 
-
-            if(on)  SetRelayOnTimerSeconds(on);
-            else    SetRelayStatus(true);
-            
-            SetRelayOffTimerSeconds(off);
-        }
-    });
-    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    server.on("/h/stop", HTTP_POST, [](AsyncWebServerRequest *request) {
-        LOGGER << request->url() << NL;
-        cancel();
-    });
-    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     server.on("/h/now", HTTP_GET, [](AsyncWebServerRequest *request) {
         LOGGER << request->url() << NL;
         uint32_t now;
@@ -220,12 +180,13 @@ void InitializeWebServices()
                 rtf.time[5] = 0;
                 stf.time[5] = 0;
 
-                sprintf(response, "%s;%s;%s;%lu;%lu",
+                sprintf(response, "%s;%s;%s;%lu;%lu;%ld",
                         BOOL::Get(settings.night_only, WC_LOWERCASE),
                         rtf.time,
                         stf.time,
                         riseTime.GetSeconds(),
-                        setTime.GetSeconds());
+                        setTime.GetSeconds(),
+                        (long)(settings.default_on_minutes * SECONDS_PER_MINUTE));
 
                 LOGGER << response << NL;                 
             }
@@ -233,6 +194,53 @@ void InitializeWebServices()
             SendText(response, *request);
 
         }
+    });
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    server.on("/h/data", HTTP_GET, [](AsyncWebServerRequest *request) {
+        LOGGER << request->url() << NL;
+        char response[256];
+
+        unsigned long id = GetStartId();
+
+        if(NOT_STARTED_ID)
+            sprintf(response, "%lu", id);
+        else
+            sprintf(response, "%lu;%ld;%ld",
+                    id,
+                    GetOnSeconds(),
+                    GetOffSeconds());
+
+        SendText(response, *request);
+
+        LOGGER << 
+    });
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    server.on("/h/start", HTTP_POST, [](AsyncWebServerRequest *request) {
+        LOGGER << request->url() << NL;
+
+        uint32_t on  = 0,
+                 off = 0;
+
+        bool on_used  = GetUnsignedLongParam(*request, "on",    on);    
+        bool off_used = GetUnsignedLongParam(*request, "off",   off);
+
+        LOGGER << "on=" << on << ", off=" << off << NL;
+
+        if(on_used && off_used)
+        {
+            CancelRelayOnTimer(); 
+            CancelRelayOffTimer(); 
+
+            if(on)  SetRelayOnTimerSeconds(on);
+            else    SetRelayStatus(true);
+            
+            SetRelayOffTimerSeconds(off);
+        }
+    });
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    server.on("/h/stop", HTTP_POST, [](AsyncWebServerRequest *request) {
+        LOGGER << request->url() << NL;
+        cancel();
     });
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     server.on("/m/status", HTTP_GET, [](AsyncWebServerRequest *request) {

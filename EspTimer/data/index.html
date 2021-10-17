@@ -45,17 +45,25 @@
     var g_night_only;
     var g_sunRise;
     var g_sunSet;
+    var g_default_seconds = 0;
+
+
+    var g_start_id  = 778.778;
 
     var g_refresh_counter = 0;
     var g_cleanErrorAt    = null;
 
-    var g_default_seconds = 0;
-
     var g_on_time  = new Date();
     var g_off_time = new Date();
+    var g_prev_on_time = null;
+    var g_prev_off_time = null;
     var g_started  = false;
     var g_pending = false;
-/*
+
+    var g_range_on  = new Date();
+    var g_range_off = new Date();
+
+    var g_max_hours = 15;
 /*
     var started;
     var update_start_end = true;
@@ -78,8 +86,6 @@
 
     var cleanErrorAt = null;
 
-    var start_time = new Date();
-    var end_time   = new Date();
 */
     //=================================
     // EVENTS
@@ -91,18 +97,16 @@
     }
 
     function OnSTART() {
-        today = new Date();
+        now = new Date();
 
-        getRange(today);
+        getRange(now);
 
-        on_seconds  = d2s(start_time) - d2s(today);
-        off_seconds = d2s(end_time)   - d2s(today);
-
-        max_hours = 15;
+        on_seconds  = d2s(g_range_on)  - d2s(now);
+        off_seconds = d2s(g_range_off) - d2s(now);
 
         if(on_seconds >= off_seconds ||
-           off_seconds - on_seconds > max_hours * 3600)   {
-            if(started)
+           off_seconds - on_seconds > g_max_hours * 3600)   {
+            if(g_started)
                 alert("'End at' time limited to " + max_hours + " hours!");
             else
                 alert("'Start at' time must be before 'End at' time!");
@@ -113,24 +117,24 @@
 
         send_post(request);
 
-        refreshNow();              
+        g_refresh_counter = 0;
+        refreshData();              
     }
 
     function OnSTOP() {
         send_post("/h/stop");
-        refreshNow();              
+
+        g_refresh_counter = 0;
+        refreshData();              
     }
 
     function OnRangeChanged()
     {
-        alert("Changed");
+        //alert("Changed");
         getRange(new Date());
 
-        on_time  = start_time;
-        off_time = end_time;
-
-        //alert("ON: " + on_time + "\n" +
-        //      "OFF:" + off_time);
+        g_on_time  = g_range_on;
+        g_off_time = g_range_off;
 
         updateRange(false);
     }
@@ -152,14 +156,14 @@
     }
 
     function setSun(text)  {
-        //document.getElementById("DEBUG_VALUE").innerText = text;
-
         arr = text.split(";");
-        g_night_only  = arr[0] == "true";
-        sunRiseText = arr[1];
-        sunSetText  = arr[2];
-        sunRiseSeconds = parseInt(arr[3]);
-        sunSetSeconds  = parseInt(arr[4]);
+
+        g_night_only      = arr[0] == "true";
+        sunRiseText       = arr[1];
+        sunSetText        = arr[2];
+        sunRiseSeconds    = parseInt(arr[3]);
+        sunSetSeconds     = parseInt(arr[4]);
+        g_default_seconds = parseInt(arr[5]);
 
         g_sunRise = JavaTime(sunRiseSeconds);
         g_sunSet  = JavaTime(sunSetSeconds);
@@ -170,13 +174,15 @@
             g_sunSet  = addHour(g_sunSet);
         }
 
+        g_prev_on_time  = g_sunSet.clone();
+        g_prev_off_time = s2d(d2s(g_sunSet) + g_default_seconds)
+
         var sun = sunRiseText + " - " + sunSetText;
         document.getElementById("SUN").innerText = sun;
 
         refresh();
 
         setInterval(refresh, 1000);
-        //updateRange(true);
     }
 
     function refresh()
@@ -196,46 +202,39 @@
     }
 
     function setData(text)  {
-        arr = text.split(";");
+        start_b         = document.getElementById("START_B");
+        stop_b          = document.getElementById("STOP_B");
 
-        start_seconds = parseInt(arr[0]);
-        end_seconds = parseInt(arr[1]);
-        g_default_seconds = parseInt(arr[2]);
+        prev_on_time    = g_on_time;
+        prev_off_time   = g_off_time;
+        prev_started    = g_started;
+        prev_pending    = g_pending;
 
-        prev_on_time  = g_on_time;
-        prev_off_time = g_off_time;
-        prev_started  = g_started;
+        now_seconds     = d2s(new Date());
+            
+        arr             = text.split(";");
+        start_id        = parseInt(arr[0]);
 
-        g_on_time  = new Date();
-        g_off_time = new Date();
-
-        now_seconds = d2s(new Date());
-        
-        g_pending = false;
-
-        if(!end_seconds)
+        if(start_id != 0)
         {
-            g_started = false;
+            if(g_start_id == start_id)
+                return;
 
-            g_on_time  = roundToMinutes(s2d(now_seconds));
-            g_off_time = roundToMinutes(s2d(now_seconds + g_default_seconds));
-        }
-        else
-        {
+            g_start_id      = start_id;
+
+            start_seconds   = parseInt(arr[1]);
+            end_seconds     = parseInt(arr[2]);
+
+            g_pending = false;
+
             if (start_seconds > 0)  { g_started = false; g_pending = true; }
             else                    { g_started = true; }
 
+            now_seconds += 60;
+
             g_on_time  = roundToMinutes(s2d(now_seconds + start_seconds));
             g_off_time = roundToMinutes(s2d(now_seconds + end_seconds));
-        }
 
-        //document.getElementById("STOP_AT_L").style.display = "inline";
-        //document.getElementById("STOP_AT").style.display = "inline";
-
-        start_b = document.getElementById("START_B");
-        stop_b  = document.getElementById("STOP_B");
-
-        if(end_seconds) {
             start_b.innerText = "UPDATE";
 
             if(g_started)
@@ -243,8 +242,20 @@
             else
                 stop_b.innerText = "CANCEL";
         }
-        else    {
-            start_b.innerText = "START";
+        else
+        {
+            if(g_start_id != start_id)
+            {
+                g_start_id = start_id;
+
+                g_started = false;
+                g_pending = false;
+
+                g_on_time  = roundToMinutes(s2d(now_seconds));
+                g_off_time = roundToMinutes(s2d(now_seconds + g_default_seconds));
+
+                start_b.innerText = "START";
+            }
         }
 
         if (g_started)
@@ -256,8 +267,8 @@
         }
         else            
         {
-            if(end_seconds) stop_b.style.display = "inline";
-            else            stop_b.style.display = "none";
+            if(g_start_id) stop_b.style.display = "inline";
+            else           stop_b.style.display = "none";
 
             document.getElementById("START_AT_L").style.display = "inline";
             document.getElementById("START_AT").style.display = "inline";
@@ -265,80 +276,97 @@
 
         update_start_end = false;
 
-        if(prev_started  != !g_started  || 
-           prev_on_time  != g_on_time   ||
-           prev_off_time != g_off_time)
+        if(prev_started  != g_started           || 
+           prev_pending  != g_pending           ||
+           !prev_on_time.equals(g_on_time)      ||
+           !prev_off_time.equals(g_off_time))
             update_start_end = true;
 
         if(update_start_end)
             updateRange(true);
     }
 
-    function getRange(today) {
-        start_time  = new Date(today.toDateString() + ' ' + document.getElementById("START_AT").value);
-        end_time    = new Date(today.toDateString() + ' ' + document.getElementById("STOP_AT").value);
+    function getRange(now) {
+        g_range_on  = new Date(now.toDateString() + ' ' + document.getElementById("START_AT").value);
+        g_range_off = new Date(now.toDateString() + ' ' + document.getElementById("STOP_AT").value);
 
-        if(start_time < today)   {
-            if(d2s(today) - d2s(start_time) >= 3600)    {
-                start_time = addDay(start_time);
+        if(g_range_on < now)   {
+            if(d2s(now) - d2s(g_range_on) >= 3600)    {
+                g_range_on = addDay(g_range_on);
             } else {
-                start_time = today;
+                g_range_on = today;
             }
         }
 
-        if(end_time < start_time)   {
-            end_time = addDay(end_time);
-        }
+        if(g_range_off < g_range_on)   {
+            tomorrow = addDay(g_range_off);
+
+            if(d2s(tomorrow) - d2s(g_range_on) < g_max_hours * 3600)
+                g_range_off = tomorrow;
+        }        
     }
 
     function updateRange(corrent_silently)  {
         correctRange(corrent_silently);
         
+        g_prev_on_time  = g_on_time.clone();
+        g_prev_off_time = g_off_time.clone();
+
         document.getElementById("START_AT").value = g_on_time.toLocaleTimeString('en-GB');
         document.getElementById("STOP_AT").value  = g_off_time.toLocaleTimeString('en-GB');
     }
 
     function correctRange(silently)  {
+        cleanError();
 
-        return; // TODO
-        if(!night_only)
+        same = g_on_time.equals(g_prev_on_time) && g_off_time.equals(g_prev_off_time);
+
+        if(same)
             return;
 
         error = "";
 
-        if(!on_time.isNight())
+        if((g_night_only && !g_on_time.isNight()) /*|| g_on_time >= g_off_time*/)
         {
             error = "Invalid 'Start at'";
-            on_time = g_sunSet; 
+            g_on_time = g_prev_on_time; 
         }
 
-        if(!off_time.isNight())
+        if((g_night_only && !g_off_time.isNight()) || g_on_time >= g_off_time)
         {
-            //alert("OFF: " + off_time);
             if(error == "")     error = "Invalid 'End at'";
             else                error = error + " and 'End at'";
-            off_time = s2d(d2s(g_sunSet) + g_default_seconds); 
+            g_off_time = g_prev_off_time;
+        }
+        /*
+        else
+        {
+            if(error != "" && (d2s(new Date()) - d2s(g_off_time)) < g_default_seconds)
+                g_off_time = g_prev_off_time; 
+        }
+        */
+
+        if(silently)
+            return;
+
+        if(error == "")
+        {
+            document.getElementById("START_B").disabled = false;
         }
         else
         {
-            if(error != "" && (d2s(new Date()) - d2s(off_time)) < g_default_seconds)
-                off_time = s2d(d2s(g_sunSet) + g_default_seconds); 
-        }
-
-        if(error != "" && !silently)    {
+            document.getElementById("START_B").disabled = true;
             showError(error);
         }
     }
 
     function showError(error)    {
-        //alert("ERROR: " + error);
-
         document.getElementById("ERROR").innerText = error;
 
         if(error != "")
-            cleanErrorAt = s2d(d2s(new Date()) + 10); 
+            g_cleanErrorAt = s2d(d2s(new Date()) + 10); 
         else
-            cleanErrorAt = null;
+            g_cleanErrorAt = null;
     }
 
     function cleanError()   { showError(""); }
@@ -388,6 +416,14 @@
         return this.getTimezoneOffset() < this.stdTimezoneOffset();
     }
 
+    Date.prototype.equals = function(other) {
+        return this.getTime() == other.getTime();
+    }
+
+    Date.prototype.clone = function() {
+        return new Date(this);
+    }
+
     function offsetSeconds(d)   {
         return d.getTimezoneOffset() * 60;
     }
@@ -410,14 +446,14 @@
 
     function roundToMinutes(t)
     {
-        temp = new Date(t);
+        temp = t.clone();
         temp.setSeconds(0);
         return temp;
     }   
 
     function addSeconds(t, s)
     {
-        retval = new Date(t);
+        retval =  t.clone();
         retval.setTime(retval.getTime() + s * 1000);
         return retval;
     }
