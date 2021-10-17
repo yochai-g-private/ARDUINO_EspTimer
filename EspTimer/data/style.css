@@ -42,3 +42,8 @@ p {
 .button_GREEN {
     background-color: #006400
 }
+
+button:disabled,button[disabled]{
+    background-color: gray;
+    cursor:not-allowed !important;
+  }

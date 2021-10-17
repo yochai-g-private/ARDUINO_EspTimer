@@ -53,6 +53,10 @@
     var g_refresh_counter = 0;
     var g_cleanErrorAt    = null;
 
+    // De facto
+    var g_de_facto_on_time  = new Date();
+    var g_de_facto_off_time = new Date();
+
     var g_on_time  = new Date();
     var g_off_time = new Date();
     var g_prev_on_time = null;
@@ -205,8 +209,8 @@
         start_b         = document.getElementById("START_B");
         stop_b          = document.getElementById("STOP_B");
 
-        prev_on_time    = g_on_time;
-        prev_off_time   = g_off_time;
+        prev_on_time    = g_de_facto_on_time;
+        prev_off_time   = g_de_facto_off_time;
         prev_started    = g_started;
         prev_pending    = g_pending;
 
@@ -232,8 +236,8 @@
 
             now_seconds += 60;
 
-            g_on_time  = roundToMinutes(s2d(now_seconds + start_seconds));
-            g_off_time = roundToMinutes(s2d(now_seconds + end_seconds));
+            g_de_facto_on_time  = roundToMinutes(s2d(now_seconds + start_seconds));
+            g_de_facto_off_time = roundToMinutes(s2d(now_seconds + end_seconds));
 
             start_b.innerText = "UPDATE";
 
@@ -251,8 +255,8 @@
                 g_started = false;
                 g_pending = false;
 
-                g_on_time  = roundToMinutes(s2d(now_seconds));
-                g_off_time = roundToMinutes(s2d(now_seconds + g_default_seconds));
+                g_de_facto_on_time  = roundToMinutes(s2d(now_seconds));
+                g_de_facto_off_time = roundToMinutes(s2d(now_seconds + g_default_seconds));
 
                 start_b.innerText = "START";
             }
@@ -274,12 +278,15 @@
             document.getElementById("START_AT").style.display = "inline";
         }
 
+        g_on_time  = g_de_facto_on_time.clone();
+        g_off_time = g_de_facto_off_time.clone();
+        
         update_start_end = false;
 
         if(prev_started  != g_started           || 
            prev_pending  != g_pending           ||
-           !prev_on_time.equals(g_on_time)      ||
-           !prev_off_time.equals(g_off_time))
+           !prev_on_time.equals(g_de_facto_on_time)      ||
+           !prev_off_time.equals(g_de_facto_off_time))
             update_start_end = true;
 
         if(update_start_end)
@@ -326,17 +333,25 @@
 
         error = "";
 
+        document.getElementById("START_B").disabled = false;
+
         if((g_night_only && !g_on_time.isNight()) /*|| g_on_time >= g_off_time*/)
         {
             error = "Invalid 'Start at'";
             g_on_time = g_prev_on_time; 
         }
 
-        if((g_night_only && !g_off_time.isNight()) || g_on_time >= g_off_time)
+        if(g_night_only && !g_off_time.isNight())
         {
             if(error == "")     error = "Invalid 'End at'";
             else                error = error + " and 'End at'";
             g_off_time = g_prev_off_time;
+        }
+
+        if(error == "" && g_on_time >= g_off_time)
+        {
+            error = "Invalid time range";
+            document.getElementById("START_B").disabled = true;
         }
         /*
         else
@@ -346,18 +361,10 @@
         }
         */
 
-        if(silently)
+        if(silently || error == "")
             return;
 
-        if(error == "")
-        {
-            document.getElementById("START_B").disabled = false;
-        }
-        else
-        {
-            document.getElementById("START_B").disabled = true;
-            showError(error);
-        }
+        showError(error);
     }
 
     function showError(error)    {
@@ -526,13 +533,13 @@
         if(!g_started && !g_pending)
             return;
 
-        bh = g_on_time.getHours(); 
-        bm = g_on_time.getMinutes();
-        bs = g_on_time.getSeconds();
+        bh = g_de_facto_on_time.getHours(); 
+        bm = g_de_facto_on_time.getMinutes();
+        bs = g_de_facto_on_time.getSeconds();
 
-        eh = g_off_time.getHours(); 
-        em = g_off_time.getMinutes();
-        es = g_off_time.getSeconds();
+        eh = g_de_facto_off_time.getHours(); 
+        em = g_de_facto_off_time.getMinutes();
+        es = g_de_facto_off_time.getSeconds();
 
         start_pos = getHourPosition(bh, bm, bs);
         end_pos   = getHourPosition(eh, em, es);
