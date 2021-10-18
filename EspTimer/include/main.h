@@ -36,8 +36,12 @@ class AsyncWebServer;
 enum IoPins
 {
     // https://randomnerdtutorials.com/esp8266-pinout-reference-gpios/
+#if _USE_ESP_01
+    RELAY_PIN               = 0,          
+#else
     TEMPERATURE_SENSOR_PIN  = A0,       
     RELAY_PIN               = D3,          
+#endif
     LED_PIN                 = LED_BUILTIN, 
 };
 

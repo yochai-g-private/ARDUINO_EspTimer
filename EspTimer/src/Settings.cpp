@@ -67,14 +67,20 @@ namespace NYG
 {
     Settings Settings::defaults =
     {
+        //==================================
+        // Constants
+        //==================================
         PRODUCT_NAME,                       // product_name
 		VERSION,                            // version
         (uint16_t)sizeof(Settings),         // size
 
+        //==================================
+        // Configurable
+        //==================================
         APDef(PRODUCT_NAME, "12345678"),    // AP
-        APDef(),                            //prev_AP
+        APDef(),                            // prev_AP
 
-        PRODUCT_NAME,                       //host_name
+        PRODUCT_NAME,                       // host_name
         PRODUCT_NAME,                       // instance_title
 
         false,                              // use_WIFI
@@ -82,12 +88,14 @@ namespace NYG
             WiFiDef("",                 "",             IPAddress()),
             WiFiDef("HomeNet",          "1357864200",   IPAddress()),
             WiFiDef("YochaiG",          "1357864200",   IPAddress()),
-        },                                  //WIFI
-        "123",                              //WIFI_order
-        true,                               //use_led
-        DEFAULT_ON_MINUTES,                 //default_on_minutes
-        MAX_RELAY_MINUTES,                  //max_on_delay_minutes
-        MAX_RELAY_MINUTES,                  //max_off_delay_minutes
+        },                                  // WIFI
+        "123",                              // WIFI_order
+
+        true,                               // use_led
+
+        DEFAULT_ON_MINUTES,                 // default_on_minutes
+        MAX_RELAY_MINUTES,                  // max_on_delay_minutes
+        MAX_RELAY_MINUTES,                  // max_off_delay_minutes
 
         true,                               //night_only
     };
@@ -122,7 +130,6 @@ static bool set_AP(APDef& AP, const String& ssid_pass, AsyncWebServerRequest *re
     }
 
     AP.Set(SSID.c_str(), pass.c_str());
-    settings.Store();
 
     return true;
 }
@@ -171,6 +178,7 @@ void Settings::InitializeWebServices(AsyncWebServer& server)
                 return;
         }
 
+        settings.Store();
         SendInfo(settings.AP.SSID(), *request);
     });
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -208,27 +216,69 @@ void Settings::InitializeWebServices(AsyncWebServer& server)
         String arg;
         Times  times;
 
-        if (GetStringParam(*request, "1",  arg))
+        struct Changed
         {
-            if(!set_wifi(1, arg, request))
-                return;
-        }
-        if (GetStringParam(*request, "2",  arg))
-        {
-            if(!set_wifi(2, arg, request))
-                return;
-        }
-        if (GetStringParam(*request, "3",  arg))
-        {
-            if(!set_wifi(3, arg, request))
-                return;
-        }
+            Changed()   : m_save_it(false)    {   }
+            ~Changed()  { if(m_save_it) settings.Store(); }
+            void Set()  { m_save_it = true; }
 
-        bool use;
-        if (GetBoolParam(*request, "use",  use))
+        private:
+            bool m_save_it;
+        };
+
+        // UNCONDITIONED
         {
-            settings.use_WIFI = use;
-            settings.Store();
+            Changed changed;
+
+            bool use;
+            if (GetBoolParam(*request, "use",  use))
+            {
+                settings.use_WIFI = use;
+                changed.Set();
+            }
+
+            if (GetStringParam(*request, "1",  arg))
+            {
+                if(!set_wifi(1, arg, request))
+                    return;
+
+                changed.Set();
+            }
+            if (GetStringParam(*request, "2",  arg))
+            {
+                if(!set_wifi(2, arg, request))
+                    return;
+
+                changed.Set();
+            }
+            if (GetStringParam(*request, "3",  arg))
+            {
+                if(!set_wifi(3, arg, request))
+                    return;
+
+                changed.Set();
+            }
+
+            if (GetStringParam(*request, "order",  arg))
+            {
+                const char* order = arg.c_str();
+                if(!*order)
+                    order = "321";
+
+                bool OK = (0 != *order);
+
+                for(int idx = 0; OK && order[idx]; idx++)
+                {
+                    int order_idx = order[idx] - '0';
+                    OK = order_idx >= 1 && order_idx <= countof(settings.WIFI);
+                }
+
+                if(OK)
+                {
+                    strncpy(settings.WIFI_order, order, countof(settings.WIFI));
+                    changed.Set();
+                }
+            }
         }
 
         int WIFI_idx = GetWiFiIndex();
@@ -257,34 +307,9 @@ void Settings::InitializeWebServices(AsyncWebServer& server)
             text += line;
         }
 
+        text = text + "order=" + settings.WIFI_order;
+
         SendInfo(text.c_str(), *request);
-    });
-    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    server.on("/m/settings/wifi_order", HTTP_GET, [](AsyncWebServerRequest *request) {
-        LOGGER << request->url() << NL;
-        String arg;
-        if (GetStringParam(*request, "set",  arg))
-        {
-            const char* order = arg.c_str();
-            if(!*order)
-                order = "321";
-
-            bool OK = (0 != *order);
-
-            for(int idx = 0; OK && order[idx]; idx++)
-            {
-                int order_idx = order[idx] - '0';
-                OK = order_idx >= 1 && order_idx <= countof(settings.WIFI);
-            }
-
-            if(OK)
-            {
-                strncpy(settings.WIFI_order, order, countof(settings.WIFI));
-                settings.Store();
-            }
-        }
-
-        SendInfo(settings.WIFI_order, *request);
     });
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     server.on("/m/settings/led", HTTP_GET, [](AsyncWebServerRequest *request) {

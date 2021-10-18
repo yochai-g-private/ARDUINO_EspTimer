@@ -29,8 +29,11 @@ RevertedDigitalOutputPin            gbl_led(LED_PIN);
 static Timer                        st_restart_timer,
                                     st_relay_off_timer,
                                     st_relay_on_timer;
+#if !_USE_ESP_01
 //static Thermistor*                  st_thermistor;
 static SmoothThermistor*            st_thermistor;
+#endif //!_USE_ESP_01
+
 typedef DigitalOutputPin            Relay;
 
 static Relay                        st_relay(RELAY_PIN);
@@ -111,10 +114,11 @@ void setup()
         return;
     }
 
+#if !_USE_ESP_01
     static SmoothThermistor thermistor(TEMPERATURE_SENSOR_PIN, 3.3);
 //    static Thermistor thermistor(TEMPERATURE_SENSOR_PIN, 3.3);
     st_thermistor = &thermistor;
-
+#endif //!_USE_ESP_01
     LOGGER << "Started!" << NL;
 }
 //-----------------------------------------------------------------
@@ -123,7 +127,9 @@ void loop()
     if(!st_wifi_OK)
         return;
 
+#if !_USE_ESP_01
     st_thermistor->OnLoop();
+#endif //!_USE_ESP_01
 
     static unsigned long prev_micros = micros() - 1000000;
     unsigned long now_micros = micros();
@@ -230,11 +236,22 @@ bool GetRelayStatus()
     return st_relay.IsOn();
 }
 //-----------------------------------------------------------
+static void setStartId(bool on)
+{
+    if(on)
+        do  {
+            st_start_id = (unsigned long) Random::Get();
+        }   while(st_start_id == NOT_STARTED_ID);
+    else
+        st_start_id = NOT_STARTED_ID;
+}
+//-----------------------------------------------------------
 void SetRelayStatus(bool on)
 {
     LOGGER << "Relay set to " << ONOFF(on).Get() << NL;
     st_relay.Set(on);
     st_on_at = (on) ? millis() : 0;
+    setStartId(on);
 }
 //-----------------------------------------------------------
 unsigned long GetStartId()
@@ -246,16 +263,13 @@ void SetRelayOffTimerSeconds(uint32_t seconds)
 {
     if(seconds)     
     { 
-        do  {
-            st_start_id = (unsigned long) Random::Get();
-        }   while(st_start_id == NOT_STARTED_ID);
-
+        setStartId(true);
         st_relay_off_timer.StartOnce(seconds * 1000); 
         LOGGER << "Relay OFF timer set for " << ConvertToHuman(seconds) << NL;  
     }
     else            
     { 
-        st_start_id = NOT_STARTED_ID;
+        setStartId(false);
         st_relay_off_timer.Stop();                    
         LOGGER << "Relay OFF timer canceled" << NL;
     }
@@ -283,7 +297,11 @@ int32_t GetRelayOnSeconds()
 //-----------------------------------------------------------
 float GetTemperature()
 {
+#if _USE_ESP_01
+    return 0;
+#else
     return st_thermistor->GetCelsius();
+#endif !_USE_ESP_01
 }
 //-----------------------------------------------------------
 void ScheduleRestart(uint32_t seconds)

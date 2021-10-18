@@ -211,8 +211,6 @@ void InitializeWebServices()
                     GetOffSeconds());
 
         SendText(response, *request);
-
-        LOGGER << 
     });
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     server.on("/h/start", HTTP_POST, [](AsyncWebServerRequest *request) {

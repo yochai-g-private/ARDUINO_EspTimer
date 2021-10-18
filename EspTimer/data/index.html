@@ -209,11 +209,14 @@
         start_b         = document.getElementById("START_B");
         stop_b          = document.getElementById("STOP_B");
 
-        prev_on_time    = g_de_facto_on_time;
-        prev_off_time   = g_de_facto_off_time;
+        prev_de_facto_on_time    = g_de_facto_on_time;
+        prev_de_facto_off_time   = g_de_facto_off_time;
         prev_started    = g_started;
         prev_pending    = g_pending;
 
+        prev_on_time    = g_on_time;
+        prev_off_time   = g_off_time;
+        
         now_seconds     = d2s(new Date());
             
         arr             = text.split(";");
@@ -245,18 +248,46 @@
                 stop_b.innerText = "STOP";
             else
                 stop_b.innerText = "CANCEL";
+            
+            g_on_time  = g_de_facto_on_time.clone();
+            g_off_time = g_de_facto_off_time.clone();
         }
         else
         {
-            if(g_start_id != start_id)
+            on_time  = roundToMinutes(s2d(now_seconds));
+            off_time = roundToMinutes(s2d(now_seconds + g_default_seconds));
+
+            if(g_start_id == start_id)
+            {
+                if(g_on_time < on_time)
+                {
+                    delta_seconds = d2s(g_off_time) - d2s(g_on_time);
+
+                    if(delta_seconds < 180)
+                        delta_seconds = 180;
+                        
+                    if(delta_seconds == g_default_seconds)
+                    {
+                        g_off_time = off_time;
+                    }
+                    else
+                    if(delta_seconds <= 5 * 60)
+                    {
+                        g_off_time = new Date(on_time.getTime() + delta_seconds * 1000);
+                    }
+
+                    g_on_time  = on_time;
+                }
+            }
+            else
             {
                 g_start_id = start_id;
 
                 g_started = false;
                 g_pending = false;
 
-                g_de_facto_on_time  = roundToMinutes(s2d(now_seconds));
-                g_de_facto_off_time = roundToMinutes(s2d(now_seconds + g_default_seconds));
+                g_on_time  = on_time;
+                g_off_time = off_time;
 
                 start_b.innerText = "START";
             }
@@ -278,15 +309,14 @@
             document.getElementById("START_AT").style.display = "inline";
         }
 
-        g_on_time  = g_de_facto_on_time.clone();
-        g_off_time = g_de_facto_off_time.clone();
-        
         update_start_end = false;
 
-        if(prev_started  != g_started           || 
-           prev_pending  != g_pending           ||
-           !prev_on_time.equals(g_de_facto_on_time)      ||
-           !prev_off_time.equals(g_de_facto_off_time))
+        if(prev_started  != g_started                               || 
+           prev_pending  != g_pending                               ||
+           !prev_on_time.equals(g_on_time)                          ||
+           !prev_off_time.equals(g_off_time)                        ||
+           !prev_de_facto_on_time.equals(g_de_facto_on_time)        ||
+           !prev_de_facto_off_time.equals(g_de_facto_off_time))
             update_start_end = true;
 
         if(update_start_end)
@@ -297,11 +327,14 @@
         g_range_on  = new Date(now.toDateString() + ' ' + document.getElementById("START_AT").value);
         g_range_off = new Date(now.toDateString() + ' ' + document.getElementById("STOP_AT").value);
 
+        g_range_on  = roundToMinutes(g_range_on);
+        g_range_off = roundToMinutes(g_range_off);
+
         if(g_range_on < now)   {
             if(d2s(now) - d2s(g_range_on) >= 3600)    {
                 g_range_on = addDay(g_range_on);
             } else {
-                g_range_on = today;
+                g_range_on = roundToMinutes(now);
             }
         }
 
