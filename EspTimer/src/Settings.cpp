@@ -134,27 +134,6 @@ static bool set_AP(APDef& AP, const String& ssid_pass, AsyncWebServerRequest *re
     return true;
 }
 //------------------------------------------------------
-/*
-static const char* set_wifi(int idx, const String& ssid_pass)
-{
-#if 1
-    return set_AP(settings.WIFI[idx-1], ssid_pass);
-#else
-    idx--;
-
-    int sepidx = ssid_pass.indexOf(':');
-    if(sepidx < 1)
-        return;
-
-    String SSID = ssid_pass.substring(0, sepidx);
-    String pass = ssid_pass.substring(sepidx + 1);
-
-    settings.WIFI[idx].Set(SSID.c_str(), pass.c_str(), IPAddress());
-    settings.Store();
-#endif
-}
-*/
-//------------------------------------------------------
 static bool set_wifi(int idx, const String& ssid_pass, AsyncWebServerRequest *request)
 {
     return set_AP(settings.WIFI[idx-1], ssid_pass, request);

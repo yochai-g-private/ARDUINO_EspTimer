@@ -8,6 +8,7 @@
 #include <LittleFS.h>
 
 AsyncWebServer server(80);
+static void checkFS();
 
 static String processor(const String& var) {
     if (var == "TEMPERATURE")
@@ -76,73 +77,23 @@ void InitializeWebServices()
         return;
     }
 
+    checkFS();
+    
     File file = LittleFS.open("index.html", "r");
     if(!file)
     {
         Serial.println("***************** Failed to open file for reading ****************************");
         //return;
     }
-#if 0
-                                FSInfo fs_info;
-                                LittleFS.info(fs_info);
-                            
-                                Serial.println("File sistem info.");
-                            
-                                Serial.print("Total space:      ");
-                                Serial.print(fs_info.totalBytes);
-                                Serial.println("byte");
-                            
-                                Serial.print("Total space used: ");
-                                Serial.print(fs_info.usedBytes);
-                                Serial.println("byte");
-                            
-                                Serial.print("Block size:       ");
-                                Serial.print(fs_info.blockSize);
-                                Serial.println("byte");
-                            
-                                Serial.print("Page size:        ");
-                                Serial.print(fs_info.totalBytes);
-                                Serial.println("byte");
-                            
-                                Serial.print("Max open files:   ");
-                                Serial.println(fs_info.maxOpenFiles);
-                            
-                                Serial.print("Max path lenght:  ");
-                                Serial.println(fs_info.maxPathLength);
-                            
-                                Serial.println();
-                            
-                                // Open dir folder
-                                Dir dir = LittleFS.openDir("/");
-                                // Cycle all the content
-                                while (dir.next()) {
-                                    // get filename
-                                    Serial.print(dir.fileName());
-                                    Serial.print(" - ");
-                                    // If element have a size display It else write 0
-                                    if(dir.fileSize()) {
-                                        File f = dir.openFile("r");
-                                        Serial.println(f.size());
-                                        f.close();
-                                    }else{
-                                        Serial.println("0");
-                                    }
-                                }
-#endif      //0
+
 	static String last_modified_s = LongTimeText(DstTime::GetBuildTime()).buffer;
     const char* last_modified = last_modified_s.c_str();
 
     LOGGER << "Date-Modified set to " << last_modified << NL;
 
-    //AsyncStaticWebHandler* handler;
-
-    // ARDUINO IDE EspTimer.spiffs.bin FILE LOCATION:
-    // C:\Users\yochai.glauber\AppData\Local\Temp\arduino_build_950057\EspTimer.spiffs.bin
-    // C:\Users\yochai.glauber\Documents\Arduino\VscProjects\EspTimer\EspTimer\.pio\build\d1_mini\firmware.bin
     // Route for root / web page
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
         LOGGER << request->url() << NL;
-        //SendInfo("INDEX.HTML requested", *request);
         request->send(LittleFS, "/index.html", String(), false, processor);
     });
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -363,5 +314,54 @@ void SendInstantHtml(AsyncWebServerRequest& request, Html::Element& e)
     html.AddStyleSheet("style.css");
     html.Body().AddChild(e);
     SendElement(html, request);
+}
+//------------------------------------------------------
+static void checkFS()
+{
+    FSInfo fs_info;
+    LittleFS.info(fs_info);
+ 
+    Serial.println("File system info:");
+ 
+    Serial.print("Total space:      ");
+    Serial.print(fs_info.totalBytes);
+    Serial.println("byte");
+ 
+    Serial.print("Total space used: ");
+    Serial.print(fs_info.usedBytes);
+    Serial.println("byte");
+ 
+    Serial.print("Block size:       ");
+    Serial.print(fs_info.blockSize);
+    Serial.println("byte");
+ 
+    Serial.print("Page size:        ");
+    Serial.print(fs_info.totalBytes);
+    Serial.println("byte");
+ 
+    Serial.print("Max open files:   ");
+    Serial.println(fs_info.maxOpenFiles);
+ 
+    Serial.print("Max path lenght:  ");
+    Serial.println(fs_info.maxPathLength);
+ 
+    Serial.println();
+ 
+    // Open dir folder
+    Dir dir = LittleFS.openDir("/");
+    // Cycle all the content
+    while (dir.next()) {
+        // get filename
+        Serial.print(dir.fileName());
+        Serial.print(" - ");
+        // If element have a size display It else write 0
+        if(dir.fileSize()) {
+            File f = dir.openFile("r");
+            Serial.println(f.size());
+            f.close();
+        }else{
+            Serial.println("0");
+        }
+    }
 }
 //------------------------------------------------------

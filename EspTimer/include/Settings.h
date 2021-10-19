@@ -43,8 +43,6 @@ namespace NYG
 
         bool Store();
         
-        static void AddWebServices(AsyncWebServer& server);
-
         enum { SUNRISE = 0xFFFF };
 
         static void WriteApplicationInfoToLog()
