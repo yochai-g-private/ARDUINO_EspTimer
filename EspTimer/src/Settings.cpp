@@ -249,7 +249,7 @@ void Settings::InitializeWebServices(AsyncWebServer& server)
                 for(int idx = 0; OK && order[idx]; idx++)
                 {
                     int order_idx = order[idx] - '0';
-                    OK = order_idx >= 1 && order_idx <= countof(settings.WIFI);
+                    OK = order_idx >= 1 && order_idx <= (int)countof(settings.WIFI);
                 }
 
                 if(OK)
@@ -261,16 +261,16 @@ void Settings::InitializeWebServices(AsyncWebServer& server)
         }
 
         int WIFI_idx = GetWiFiIndex();
-        const char* connected = (WIFI_idx < 0 || WIFI_idx >= countof(settings.WIFI)) ? "?" : settings.WIFI[WIFI_idx].SSID();
+        const char* connected = (WIFI_idx < 0 || WIFI_idx >= (int)countof(settings.WIFI)) ? "?" : settings.WIFI[WIFI_idx].SSID();
 
         String text = "use=";
         text = text + ONOFF(settings.use_WIFI).Get() + "\n";
 
-        for(int idx = 0; idx < countof(settings.WIFI); idx++)
+        for(int idx = 0; idx < (int)countof(settings.WIFI); idx++)
         {
             int WIFI_idx = settings.WIFI_order[idx] - '1';
 
-            if(WIFI_idx < 0 || WIFI_idx >= countof(settings.WIFI))
+            if((WIFI_idx < 0) || (WIFI_idx >= (int)countof(settings.WIFI)))
                 continue;
 
             if(!*settings.WIFI[WIFI_idx].SSID())

@@ -135,8 +135,8 @@ void InitializeWebServices()
                         BOOL::Get(settings.night_only, WC_LOWERCASE),
                         rtf.time,
                         stf.time,
-                        riseTime.GetSeconds(),
-                        setTime.GetSeconds(),
+                        (long unsigned int)riseTime.GetSeconds(),
+                        (long unsigned int)setTime.GetSeconds(),
                         (long)(settings.default_on_minutes * SECONDS_PER_MINUTE));
 
                 LOGGER << response << NL;                 
@@ -234,8 +234,8 @@ void InitializeWebServices()
 
         CancelRelayOffTimer();
 
-        if(off_minutes_used && off_minutes)     SetRelayOnTimer(off_minutes);
-                                                SetRelayStatus(false);
+        if(off_minutes_used && off_minutes)         SetRelayOnTimer(off_minutes);
+        else                                        SetRelayStatus(false);
 
         SendInfo(get_relay_status().c_str(), *request);
     });

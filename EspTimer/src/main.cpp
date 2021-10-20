@@ -18,7 +18,6 @@
 #include "WebServices.h"
 
 static bool connect_to_WIFI(bool require_specific_address);
-static void get_internet_time(bool RTC_ok);
 
 const char*                         gbl_fatal_error_reason = NULL;
 
@@ -202,13 +201,13 @@ static bool connect_to_WIFI(bool require_specific_address)
 
     LOGGER << "Trying to connect to WiFi..." << NL;
 
-    for(int idx = 0; idx < countof(settings.WIFI); idx++)
+    for(int idx = 0; idx < (int)countof(settings.WIFI); idx++)
     {
         LedOnOff on_off;
 
         WIFI_idx = settings.WIFI_order[idx] - '1';
 
-        if(WIFI_idx < 0 || WIFI_idx >= countof(settings.WIFI))
+        if(WIFI_idx < 0 || WIFI_idx >= (int)countof(settings.WIFI))
             continue;
 
         if(!*settings.WIFI[WIFI_idx].SSID())
@@ -301,7 +300,7 @@ float GetTemperature()
     return 0;
 #else
     return st_thermistor->GetCelsius();
-#endif !_USE_ESP_01
+#endif //!_USE_ESP_01
 }
 //-----------------------------------------------------------
 void ScheduleRestart(uint32_t seconds)
@@ -320,10 +319,10 @@ String ConvertToHuman(int32_t t)
     String prefix;
 
     if(h > 0)   retval += prefix + String(h) + " hour"   + (h == 1 ? "" : "s");
-    prefix = String(h > 0 ? s > 0 ? ", " : " and " : "");
+    prefix = String((h > 0) ? (s > 0) ? ", " : " and " : "");
 
     if(m > 0)   retval += prefix + String(m) + " minute" + (m == 1 ? "" : "s");
-    prefix = String(h > 0 | m > 0 ? " and " : "");
+    prefix = String(((h > 0) | (m > 0)) ? " and " : "");
 
     if(s > 0)   retval += prefix + String(s) + " second" + (s == 1 ? "" : "s");
 
