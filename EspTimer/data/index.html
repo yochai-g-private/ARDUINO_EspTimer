@@ -71,6 +71,9 @@
 
     var g_first_time = true;
 
+    const UPDATE = "UPDATE";
+    const CANCEL = "CANCEL";
+    
     //=================================
     // EVENTS
     //=================================
@@ -85,7 +88,11 @@
 
         getRange(now);
 
-        on_seconds  = d2s(g_range_on)  - d2s(now);
+        if (document.getElementById("START_B").innerText == UPDATE && document.getElementById("STOP_B").innerText != CANCEL)
+            on_seconds = 0;
+        else
+            on_seconds  = d2s(g_range_on)  - d2s(now);
+
         off_seconds = d2s(g_range_off) - d2s(now);
 
         if(on_seconds >= off_seconds ||
@@ -222,12 +229,12 @@
             g_de_facto_on_time  = roundToMinutes(s2d(now_seconds + start_seconds));
             g_de_facto_off_time = roundToMinutes(s2d(now_seconds + end_seconds));
 
-            start_b.innerText = "UPDATE";
+            start_b.innerText = UPDATE;
 
             if(g_started)
                 stop_b.innerText = "STOP";
             else
-                stop_b.innerText = "CANCEL";
+                stop_b.innerText = CANCEL;
             
             g_on_time  = g_de_facto_on_time.clone();
             g_off_time = g_de_facto_off_time.clone();
