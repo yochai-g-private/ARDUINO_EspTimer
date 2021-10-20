@@ -68,29 +68,9 @@
     var g_range_off = new Date();
 
     var g_max_hours = 15;
-/*
-    var started;
-    var update_start_end = true;
-    var sunRise;
-    var sunSet;
-    var night_only = false;
-    var dst;
 
-    var seconds_counter = 0;
-    var force_refresh = false;
+    var g_first_time = true;
 
-    var on_time = new Date();
-    var off_time = new Date();
-
-    var start_seconds = 0;
-    var end_seconds = 0;
-    var default_seconds = 0;
-
-    var connected;
-
-    var cleanErrorAt = null;
-
-*/
     //=================================
     // EVENTS
     //=================================
@@ -321,6 +301,8 @@
 
         if(update_start_end)
             updateRange(true);
+
+        g_first_time = false;
     }
 
     function getRange(now) {
@@ -372,6 +354,9 @@
         {
             error = "Invalid 'Start at'";
             g_on_time = g_prev_on_time; 
+
+            if(g_first_time)
+                g_off_time = g_prev_off_time;
         }
 
         if(g_night_only && !g_off_time.isNight())

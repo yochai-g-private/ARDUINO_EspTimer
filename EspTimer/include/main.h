@@ -23,7 +23,7 @@
 #define IP_ADDRESS_4TH_BYTE     199
 #endif //_BUILD_PRODUCTION
 
-#define VERSION			2
+#define VERSION			3
 
 //#define IP_ADDRESS_4TH_BYTE 123
 
