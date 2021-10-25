@@ -17,6 +17,9 @@ static String processor(const String& var) {
     if (var == "TITLE")
         return settings.instance_title;
 
+    if (var == "BUILT_AT")
+        return String(DstTime::GetBuildTime().ToText());
+
     return "";
 }
 

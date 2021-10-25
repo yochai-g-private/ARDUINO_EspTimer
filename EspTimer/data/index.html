@@ -32,7 +32,8 @@
     <a id="START">  <button id="START_B" class="button button_GREEN" style="margin:10px;" onclick="OnSTART()" hidden>START</button></a>
     <a id="STOP">   <button id="STOP_B"  class="button button_RED"   style="margin:10px;" onclick="OnSTOP()"  hidden>STOP</button></a><br>
     <a id="DEBUG_VALUE"></a><br>
-    <b id="ERROR" style="color:red; font-size:20px;"></b>
+    <b id="ERROR" style="color:red; font-size:20px;"></b><br><br>
+    <a style="color:black; font-size:16px;">%BUILT_AT%</a>
 
 </div>
 
@@ -91,7 +92,10 @@
         if (document.getElementById("START_B").innerText == UPDATE && document.getElementById("STOP_B").innerText != CANCEL)
             on_seconds = 0;
         else
-            on_seconds  = d2s(g_range_on)  - d2s(now);
+            on_seconds  = d2s(g_range_on) - d2s(now);
+
+        if(on_seconds < 0)
+            on_seconds = 0;
 
         off_seconds = d2s(g_range_off) - d2s(now);
 
