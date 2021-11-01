@@ -19,7 +19,7 @@
 #define PRODUCT_NAME            "EspTimer"
 #define IP_ADDRESS_4TH_BYTE     123
 #else
-#define PRODUCT                 "TestEspTimer"
+#define PRODUCT_NAME            "TestEspTimer"
 #define IP_ADDRESS_4TH_BYTE     199
 #endif //_BUILD_PRODUCTION
 

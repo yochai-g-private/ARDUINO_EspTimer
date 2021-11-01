@@ -275,10 +275,9 @@ void InitializeWebServices()
     settings.InitializeWebServices(server);
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     server.onNotFound([](AsyncWebServerRequest *request) {
-        if (request->url() == "/favicon.ico")    return;
-
         if(LittleFS.exists(request->url()))
         {
+            LOGGER << request->url() << NL;
             request->send(LittleFS, request->url(), String(), false, processor);
             return;
         }
