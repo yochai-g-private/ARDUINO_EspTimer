@@ -86,8 +86,8 @@ namespace NYG
         false,                              // use_WIFI
         {   
             WiFiDef("",                 "",             IPAddress()),
-            WiFiDef(HOME_TEST_SSID,          HOME_TEST_SSID_PASS,   IPAddress()),
-            WiFiDef("YochaiG",          HOME_TEST_SSID_PASS,   IPAddress()),
+            WiFiDef(HOME_TEST_SSID,          HOME_WIFI_COMMON_PASS,   IPAddress()),
+            WiFiDef("YochaiG",          HOME_WIFI_COMMON_PASS,   IPAddress()),
         },                                  // WIFI
         "123",                              // WIFI_order
 
